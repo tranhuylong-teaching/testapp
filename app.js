@@ -152,6 +152,7 @@ const loadGameData = async (uid) => {
                     setDoc(doc.ref, { stats: d.stats, ovr: d.ovr }, { merge: true });
                 }
                 if(!d.bonusStats) d.bonusStats = { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 };
+                if (d.stamina === undefined || isNaN(d.stamina)) d.stamina = 100; // Khởi tạo thể lực nếu chưa có
                 
                 globalPlayersList.push(d); 
                 globalPlayersMap[d.id] = d; 
@@ -274,10 +275,19 @@ const renderSquadList = () => {
     
     globalPlayersList.forEach(p => {
         const statusHtml = p.isListed ? '<span class="text-xs bg-red-900 text-red-300 px-2 py-1 rounded">Rao Bán</span>' : '<span class="text-xs bg-green-900 text-green-300 px-2 py-1 rounded">Tại CLB</span>';
+        const stColor = p.stamina >= 80 ? 'text-green-400' : (p.stamina >= 50 ? 'text-yellow-400' : 'text-red-400');
+        const stBg = p.stamina >= 80 ? 'bg-green-400' : (p.stamina >= 50 ? 'bg-yellow-400' : 'bg-red-500');
+
         tbody.innerHTML += `
             <tr class="hover:bg-slate-700/50 transition-colors cursor-pointer" onclick="window.openPlayerDetail('${p.id}')">
                 <td class="p-4 pl-6"><span class="${posColors[p.pos]} text-white text-xs font-bold px-2 py-1 rounded w-12 inline-block text-center">${p.pos}</span></td>
-                <td class="p-4 font-medium text-white">${p.name}</td>
+                <td class="p-4 font-medium text-white">
+                    <div class="mb-1">${p.name}</div>
+                    <div class="flex items-center gap-2 text-[10px] ${stColor}">
+                        <span>⚡ ${p.stamina}%</span>
+                        <div class="w-16 bg-slate-700 h-1.5 rounded-full overflow-hidden"><div class="${stBg} h-full" style="width: ${p.stamina}%"></div></div>
+                    </div>
+                </td>
                 <td class="p-4 text-center font-bold text-green-400">${p.ovr}</td>
                 <td class="p-4 text-center">${statusHtml}</td>
                 <td class="p-4 text-right pr-6 text-yellow-400">€${(p.value || p.ovr*100000).toLocaleString()}</td>
@@ -312,16 +322,41 @@ window.openPlayerDetail = (playerId) => {
     
     document.getElementById('detail-value').textContent = `€${(p.value || p.ovr*100000).toLocaleString()}`;
     
+    // Tiêm thanh Thể lực vào Modal
+    let staminaDiv = document.getElementById('detail-stamina-bar');
+    if (!staminaDiv) {
+        staminaDiv = document.createElement('div');
+        staminaDiv.id = 'detail-stamina-bar';
+        staminaDiv.className = 'mt-3 mb-2 flex flex-col items-center justify-center';
+        const pModal = document.getElementById('sell-player-container').parentElement;
+        pModal.insertBefore(staminaDiv, document.getElementById('sell-player-container'));
+    }
+    const stColor = p.stamina >= 80 ? 'text-green-400' : (p.stamina >= 50 ? 'text-yellow-400' : 'text-red-400');
+    const stBg = p.stamina >= 80 ? 'bg-green-400' : (p.stamina >= 50 ? 'bg-yellow-400' : 'bg-red-500');
+    staminaDiv.innerHTML = `
+        <div class="text-sm text-slate-300 mb-1">Thể lực hiện tại: <span class="font-bold ${stColor}">${p.stamina}%</span></div>
+        <div class="w-3/4 bg-slate-700 h-2 rounded-full overflow-hidden mb-2"><div class="${stBg} h-full transition-all" style="width: ${p.stamina}%"></div></div>
+    `;
+
     const sellContainer = document.getElementById('sell-player-container');
     if (p.isListed) { sellContainer.innerHTML = `<button onclick="window.toggleTransferListing()" class="w-full py-2 bg-slate-700 hover:bg-slate-600 text-white rounded font-bold transition">Hủy Rao Bán</button>`; } 
     else { sellContainer.innerHTML = `<button onclick="window.toggleTransferListing()" class="w-full py-2 bg-red-600 hover:bg-red-500 text-white rounded font-bold shadow-lg transition">Đưa lên TTCN</button>`; }
+    
     document.getElementById('player-detail-modal').classList.remove('hidden');
 };
 document.getElementById('close-detail-modal').addEventListener('click', () => { document.getElementById('player-detail-modal').classList.add('hidden'); });
 
 const calcTeamPower = () => {
     let totalOVR = 0, count = 0;
-    startingXI.forEach(id => { if(id && globalPlayersMap[id]) { totalOVR += globalPlayersMap[id].ovr; count++; } });
+    startingXI.forEach(id => { 
+        if(id && globalPlayersMap[id]) { 
+            let p = globalPlayersMap[id];
+            let penalty = p.stamina < 60 ? Math.floor((60 - p.stamina) / 2) : 0; // Trừ OVR nếu thể lực cạn
+            let effOvr = Math.max(1, p.ovr - penalty);
+            totalOVR += effOvr; 
+            count++; 
+        } 
+    });
     teamPower.OVR = count > 0 ? Math.round(totalOVR/count) : 0;
     document.getElementById('team-ovr').textContent = teamPower.OVR;
     
@@ -343,13 +378,31 @@ const renderPitch = () => {
         for(let i=0; i<rowCount; i++) {
             const p = startingXI[slotIndex] ? globalPlayersMap[startingXI[slotIndex]] : null;
             const currentIndex = slotIndex;
-            const isOutOfPos = p && p.pos !== expectedPos;
-            const borderClass = p ? (isOutOfPos ? 'border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]' : 'border-green-500') : 'border-white/40';
-            
+            let pHtml = "";
+
+            if (p) {
+                const isOutOfPos = p.pos !== expectedPos;
+                const borderClass = isOutOfPos ? 'border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]' : 'border-green-500';
+                const penalty = p.stamina < 60 ? Math.floor((60 - p.stamina) / 2) : 0;
+                const effOvr = Math.max(1, p.ovr - penalty);
+                const stBg = p.stamina >= 80 ? 'bg-green-400' : (p.stamina >= 50 ? 'bg-yellow-400' : 'bg-red-500');
+
+                pHtml = `
+                    <div class="w-10 h-10 bg-slate-800 border-2 ${borderClass} rounded-full flex items-center justify-center font-bold text-sm z-10 shadow-lg relative">
+                        ${effOvr}
+                        ${penalty > 0 ? `<div class="absolute -top-2 -right-2 bg-red-600 text-white text-[9px] font-bold px-1 rounded-full shadow">-${penalty}</div>` : ''}
+                    </div>
+                    <div class="mt-1 w-14 flex flex-col items-center">
+                        <div class="bg-black/80 px-1.5 py-0.5 rounded text-[10px] text-white truncate max-w-full z-10">${p.name}</div>
+                        <div class="w-full bg-slate-800 h-1.5 mt-0.5 rounded border border-slate-700 overflow-hidden z-10"><div class="${stBg} h-full" style="width: ${p.stamina}%"></div></div>
+                    </div>`;
+            } else {
+                pHtml = `<div class="w-10 h-10 bg-white/10 hover:bg-white/20 border-2 border-dashed border-white/40 rounded-full flex items-center justify-center text-white/50 text-xs font-bold z-10 transition">${expectedPos}</div>`;
+            }
+
             rowDiv.innerHTML += `
             <div class="relative flex flex-col items-center w-16 cursor-pointer hover:scale-110 transition-transform" onclick="window.openBenchSelect(${currentIndex}, '${expectedPos}')">
-                ${p ? `<div class="w-10 h-10 bg-slate-800 border-2 ${borderClass} rounded-full flex items-center justify-center font-bold text-sm z-10 shadow-lg">${p.ovr}</div><div class="mt-1 bg-black/80 px-1.5 py-0.5 rounded text-[10px] text-white truncate max-w-full z-10">${p.name}</div>` 
-                    : `<div class="w-10 h-10 bg-white/10 hover:bg-white/20 border-2 border-dashed ${borderClass} rounded-full flex items-center justify-center text-white/50 text-xs font-bold z-10 transition">${expectedPos}</div>`}
+                ${pHtml}
             </div>`;
             slotIndex++;
         }
@@ -394,10 +447,17 @@ window.openBenchSelect = (slotIndex, expectedPos) => {
         const isPlaying = startingXI.includes(p.id);
         if (isPlaying && startingXI[slotIndex] !== p.id) return;
         const isCurrent = startingXI[slotIndex] === p.id;
+        const stColor = p.stamina >= 80 ? 'text-green-400' : (p.stamina >= 50 ? 'text-yellow-400' : 'text-red-400');
         
         container.innerHTML += `
             <div onclick="window.assignPlayerToSlot('${p.id}')" class="flex justify-between items-center p-3 hover:bg-slate-700/50 border-b border-slate-700/50 cursor-pointer rounded ${isCurrent ? 'bg-green-900/30' : ''}">
-                <div class="flex items-center gap-3"><span class="${posColors[p.pos]} text-white text-[10px] font-bold px-2 py-0.5 rounded w-10 text-center">${p.pos}</span><span class="text-white text-sm ${isCurrent ? 'font-bold' : ''}">${p.name}</span></div>
+                <div class="flex items-center gap-3">
+                    <span class="${posColors[p.pos]} text-white text-[10px] font-bold px-2 py-0.5 rounded w-10 text-center">${p.pos}</span>
+                    <div class="flex flex-col">
+                        <span class="text-white text-sm ${isCurrent ? 'font-bold' : ''}">${p.name}</span>
+                        <span class="text-[10px] ${stColor}">⚡ ${p.stamina}%</span>
+                    </div>
+                </div>
                 <span class="text-green-400 font-bold">${p.ovr}</span>
             </div>
         `;
@@ -559,6 +619,26 @@ window.rejectOffer = (offerId) => { pendingOffers = pendingOffers.filter(x => x.
 
 
 // ================= MODULE 7: LEAGUE & MATCH LOGIC =================
+
+// HÀM MỚI: Xử lý tiêu hao và hồi phục thể lực sau trận đấu
+const updateSquadStamina = async () => {
+    const batch = writeBatch(db);
+    globalPlayersList.forEach(p => {
+        if (startingXI.includes(p.id)) {
+            // Đá chính: Giảm 15-25%
+            p.stamina = Math.max(0, p.stamina - (Math.floor(Math.random() * 11) + 15));
+        } else {
+            // Dự bị: Hồi phục 25-35%
+            p.stamina = Math.min(100, p.stamina + (Math.floor(Math.random() * 11) + 25));
+        }
+        const pRef = doc(db, 'artifacts', appId, 'users', currentUserId, 'players', p.id);
+        batch.update(pRef, { stamina: p.stamina });
+    });
+    await batch.commit();
+    renderSquadList();
+    renderPitch();
+};
+
 const sortStandings = () => {
     leagueState.standings.sort((a, b) => {
         if (b.points !== a.points) return b.points - a.points;
@@ -661,6 +741,12 @@ let activeOpponent = null;
 
 const startMatchEngine = (opponent, isFriendly) => {
     if(startingXI.includes(null) || teamPower.OVR === 0) { window.showToast("Vui lòng xếp đủ 11 cầu thủ vào Sân (Tab Chiến Thuật)!"); return; }
+    
+    // Check nếu thể lực đội quá thấp
+    let lowStaminaCount = startingXI.filter(id => globalPlayersMap[id] && globalPlayersMap[id].stamina < 30).length;
+    if (lowStaminaCount >= 3) {
+        window.showToast("Cảnh báo: Bạn có nhiều cầu thủ đang cạn kiệt thể lực (dưới 30%). Hãy cân nhắc thay người!", "error");
+    }
     
     document.getElementById('match-setup').classList.add('hidden');
     document.getElementById('season-end-panel').classList.add('hidden');
@@ -814,13 +900,15 @@ const finishLeagueRound = async (userScore, botScore, totalEarnings) => {
 
         myBudget += currentTotalEarnings;
         updateBudgetDisplay();
+        
+        await updateSquadStamina(); // Trừ/Hồi phục thể lực toàn đội
         await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { budget: myBudget }, { merge: true });
         await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState);
         
         generateAIOffers();
 
         if(endSeasonMessage) window.showToast(endSeasonMessage, "success");
-        else window.showToast("Đã lưu kết quả. CLB khác có thể đã gửi lời đề nghị chuyển nhượng!", "success");
+        else window.showToast("Đã lưu kết quả trận đấu. Các cầu thủ đá chính bị sụt giảm thể lực!", "success");
         
         btn.textContent = "Kết thúc & Lưu kết quả"; btn.disabled = false;
         document.getElementById('match-live').classList.add('hidden');
@@ -840,6 +928,7 @@ const finishFriendlyMatch = async (totalEarnings) => {
         myBudget += totalEarnings; updateBudgetDisplay();
         leagueState.friendlyMatchesPlayed = (leagueState.friendlyMatchesPlayed || 0) + 1;
 
+        await updateSquadStamina(); // Trừ/Hồi phục thể lực toàn đội
         const batch = writeBatch(db);
         batch.set(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { budget: myBudget }, { merge: true });
         batch.set(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState);
@@ -849,7 +938,7 @@ const finishFriendlyMatch = async (totalEarnings) => {
         document.getElementById('match-live').classList.add('hidden');
         document.getElementById('season-end-panel').classList.remove('hidden');
         document.getElementById('league-table-container').classList.remove('hidden');
-        window.showToast("Hoàn tất trận giao hữu!", "success");
+        window.showToast("Hoàn tất trận giao hữu! Thể lực cầu thủ đã thay đổi.", "success");
         renderLeagueView(); 
         
     } catch (e) {
@@ -885,13 +974,22 @@ document.getElementById('start-new-season-btn').addEventListener('click', async 
             t.played = 0; t.won = 0; t.drawn = 0; t.lost = 0; t.gf = 0; t.ga = 0; t.points = 0;
         });
         
-        // BẢN VÁ LỖI XẾP LỊCH: Chỉ bốc thăm lịch với các đội Bot (không lấy đội user)
         leagueState.schedule = leagueState.standings.filter(t => !t.isUser).map(b => b.id).sort(() => Math.random() - 0.5);
         
+        // Nghỉ hết mùa giải: Hồi phục 100% thể lực cho toàn đội
+        const batch = writeBatch(db);
+        globalPlayersList.forEach(p => {
+            p.stamina = 100;
+            batch.update(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', p.id), { stamina: 100 });
+        });
+        await batch.commit();
+
         await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState);
         
+        renderSquadList();
+        renderPitch();
         renderLeagueView();
-        window.showToast("🎉 Mùa giải mới đã chính thức bắt đầu!", "success");
+        window.showToast("🎉 Mùa giải mới! Các cầu thủ đã hồi phục 100% thể lực sau kỳ nghỉ.", "success");
     } catch(e) { window.showToast("Lỗi: " + e.message); }
     
     btn.textContent = oldText; btn.disabled = false;
