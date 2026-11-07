@@ -144,7 +144,15 @@ const loadGameData = async (uid) => {
                 const d = doc.data(); 
                 d.id = doc.id; 
                 d.itemsUsed = d.itemsUsed || 0; 
+                
+                if (!d.stats || isNaN(d.ovr)) {
+                    const fallback = Math.floor(Math.random() * 20) + 50;
+                    d.stats = { PAC:fallback, SHO:fallback, PAS:fallback, DRI:fallback, DEF:fallback, PHY:fallback };
+                    d.ovr = recalculateOVR(d.pos, d.stats);
+                    setDoc(doc.ref, { stats: d.stats, ovr: d.ovr }, { merge: true });
+                }
                 if(!d.bonusStats) d.bonusStats = { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 };
+                
                 globalPlayersList.push(d); 
                 globalPlayersMap[d.id] = d; 
             });
@@ -240,7 +248,7 @@ document.getElementById('create-club-btn').addEventListener('click', async () =>
 const initLeagueData = async (uid, overrideName = null) => {
     let bots = [];
     for (let i = 0; i < 31; i++) {
-        const ovr = Math.floor(Math.random() * 20) + 60; // Bot OVR 60-80
+        const ovr = Math.floor(Math.random() * 20) + 60;
         bots.push({ 
             id: `bot_${Date.now()}_${i}`, name: `${BOT_CITY_NAMES[i]} FC`, isUser: false, ovr: ovr, 
             played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 
@@ -282,7 +290,7 @@ window.openPlayerDetail = (playerId) => {
     currentlyViewingPlayerId = playerId;
     
     const st = p.stats || { PAC: 0, SHO: 0, PAS: 0, DRI: 0, DEF: 0, PHY: 0 };
-    const bSt = p.bonusStats || { PAC: 0, SHO: 0, PAS: 0, DRI: 0, DEF: 0, PHY: 0 }; // Lấy dữ liệu bonus
+    const bSt = p.bonusStats || { PAC: 0, SHO: 0, PAS: 0, DRI: 0, DEF: 0, PHY: 0 };
     const posColors = { GK: 'bg-yellow-600', DEF: 'bg-blue-600', MID: 'bg-green-600', FWD: 'bg-red-600' };
     
     document.getElementById('detail-name').textContent = p.name;
@@ -292,29 +300,21 @@ window.openPlayerDetail = (playerId) => {
     document.getElementById('detail-ovr').textContent = p.ovr;
     document.getElementById('detail-items-used').textContent = p.itemsUsed || 0;
     
-    // Xử lý hiển thị điểm Gốc + Bonus
     ['pac','sho','pas','dri','def','phy'].forEach(s => {
         const upperS = s.toUpperCase();
         const total = st[upperS] || 0;
         const bonus = bSt[upperS] || 0;
         const base = total - bonus;
-        
         const displayEl = document.getElementById(`detail-${s}`);
-        if (bonus > 0) {
-            displayEl.innerHTML = `${base} <span class="text-green-400 font-bold ml-1">+${bonus}</span>`;
-        } else {
-            displayEl.textContent = total;
-        }
+        if (bonus > 0) { displayEl.innerHTML = `${base} <span class="text-green-400 font-bold ml-1">+${bonus}</span>`; } 
+        else { displayEl.textContent = total; }
     });
     
     document.getElementById('detail-value').textContent = `€${(p.value || p.ovr*100000).toLocaleString()}`;
     
     const sellContainer = document.getElementById('sell-player-container');
-    if (p.isListed) {
-        sellContainer.innerHTML = `<button onclick="window.toggleTransferListing()" class="w-full py-2 bg-slate-700 hover:bg-slate-600 text-white rounded font-bold transition">Hủy Rao Bán</button>`;
-    } else {
-        sellContainer.innerHTML = `<button onclick="window.toggleTransferListing()" class="w-full py-2 bg-red-600 hover:bg-red-500 text-white rounded font-bold shadow-lg transition">Đưa lên TTCN</button>`;
-    }
+    if (p.isListed) { sellContainer.innerHTML = `<button onclick="window.toggleTransferListing()" class="w-full py-2 bg-slate-700 hover:bg-slate-600 text-white rounded font-bold transition">Hủy Rao Bán</button>`; } 
+    else { sellContainer.innerHTML = `<button onclick="window.toggleTransferListing()" class="w-full py-2 bg-red-600 hover:bg-red-500 text-white rounded font-bold shadow-lg transition">Đưa lên TTCN</button>`; }
     document.getElementById('player-detail-modal').classList.remove('hidden');
 };
 document.getElementById('close-detail-modal').addEventListener('click', () => { document.getElementById('player-detail-modal').classList.add('hidden'); });
@@ -333,22 +333,16 @@ const calcTeamPower = () => {
 
 const renderPitch = () => {
     const container = document.getElementById('pitch-container'); container.innerHTML = '';
-    const layout = currentFormation.split('-').map(Number); 
-    layout.reverse(); 
-    layout.push(1); 
-    
+    const layout = currentFormation.split('-').map(Number); layout.reverse(); layout.push(1); 
     const posNames = ['FWD', 'MID', 'DEF', 'GK'];
     let slotIndex = 0;
     
     layout.forEach((rowCount, rowIndex) => {
         const expectedPos = posNames[rowIndex];
-        const rowDiv = document.createElement('div'); 
-        rowDiv.className = "flex justify-center items-center w-full gap-2 sm:gap-6";
-        
+        const rowDiv = document.createElement('div'); rowDiv.className = "flex justify-center items-center w-full gap-2 sm:gap-6";
         for(let i=0; i<rowCount; i++) {
             const p = startingXI[slotIndex] ? globalPlayersMap[startingXI[slotIndex]] : null;
             const currentIndex = slotIndex;
-            
             const isOutOfPos = p && p.pos !== expectedPos;
             const borderClass = p ? (isOutOfPos ? 'border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]' : 'border-green-500') : 'border-white/40';
             
@@ -382,8 +376,7 @@ document.getElementById('formation-select').addEventListener('change', (e) => {
         if (!val && availablePlayers.length > 0) { newXI[index] = availablePlayers[0].id; availablePlayers.splice(0, 1); }
     });
     
-    startingXI = newXI;
-    renderPitch(); 
+    startingXI = newXI; renderPitch(); 
 });
 
 window.openBenchSelect = (slotIndex, expectedPos) => {
@@ -604,10 +597,7 @@ const renderLeagueView = () => {
             let currentNames = leagueState.standings.map(t => t.name.replace(' FC', ''));
             let availableReserves = RESERVE_BOT_NAMES.filter(name => !currentNames.includes(name));
             availableReserves.sort(() => Math.random() - 0.5);
-            leagueState.promotedBots = [
-                { name: availableReserves[0] + " FC" },
-                { name: availableReserves[1] + " FC" }
-            ];
+            leagueState.promotedBots = [ { name: availableReserves[0] + " FC" }, { name: availableReserves[1] + " FC" } ];
             setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState);
         }
 
@@ -847,9 +837,7 @@ const finishFriendlyMatch = async (totalEarnings) => {
     const btn = document.getElementById('finish-match-btn');
     btn.textContent = "Đang lưu..."; btn.disabled = true;
     try {
-        myBudget += totalEarnings;
-        updateBudgetDisplay();
-        
+        myBudget += totalEarnings; updateBudgetDisplay();
         leagueState.friendlyMatchesPlayed = (leagueState.friendlyMatchesPlayed || 0) + 1;
 
         const batch = writeBatch(db);
@@ -862,7 +850,6 @@ const finishFriendlyMatch = async (totalEarnings) => {
         document.getElementById('season-end-panel').classList.remove('hidden');
         document.getElementById('league-table-container').classList.remove('hidden');
         window.showToast("Hoàn tất trận giao hữu!", "success");
-        
         renderLeagueView(); 
         
     } catch (e) {
@@ -885,24 +872,21 @@ document.getElementById('start-new-season-btn').addEventListener('click', async 
             leagueState.promotedBots.forEach(b => {
                 const ovr = Math.floor(Math.random() * 20) + 60;
                 leagueState.standings.push({
-                    id: `bot_${Date.now()}_${Math.random()}`, 
-                    name: b.name, 
-                    isUser: false, ovr: ovr, 
+                    id: `bot_${Date.now()}_${Math.random()}`, name: b.name, isUser: false, ovr: ovr, 
                     played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 
                 });
             });
         }
         leagueState.promotedBots = [];
-
         leagueState.currentRound = 1;
         leagueState.friendlyMatchesPlayed = 0; 
         
         leagueState.standings.forEach(t => {
-            t.played = 0; t.won = 0; t.drawn = 0; t.lost = 0;
-            t.gf = 0; t.ga = 0; t.points = 0;
+            t.played = 0; t.won = 0; t.drawn = 0; t.lost = 0; t.gf = 0; t.ga = 0; t.points = 0;
         });
         
-        leagueState.schedule = leagueState.standings.map(b => b.id).sort(() => Math.random() - 0.5);
+        // BẢN VÁ LỖI XẾP LỊCH: Chỉ bốc thăm lịch với các đội Bot (không lấy đội user)
+        leagueState.schedule = leagueState.standings.filter(t => !t.isUser).map(b => b.id).sort(() => Math.random() - 0.5);
         
         await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState);
         
@@ -937,25 +921,16 @@ const renderStore = () => {
 };
 
 window.buyItem = async (itemId) => {
-    const item = STORE_ITEMS.find(x => x.id === itemId);
-    if (!item) return;
+    const item = STORE_ITEMS.find(x => x.id === itemId); if (!item) return;
 
-    if (myBudget < item.price) {
-        window.showToast("Bạn không đủ tiền để mua vật phẩm này!", "error");
-        return;
-    }
+    if (myBudget < item.price) { window.showToast("Bạn không đủ tiền để mua vật phẩm này!", "error"); return; }
 
     if (item.type === 'gacha') {
         if(globalPlayersList.length >= 25) { window.showToast("Đội hình đã đầy (Tối đa 25 người)!"); return; }
-        if (confirm(`Xác nhận chi €${item.price.toLocaleString()} để mở gói cầu thủ ngẫu nhiên?`)) {
-            await rollGacha(item.price);
-        }
+        if (confirm(`Xác nhận chi €${item.price.toLocaleString()} để mở gói cầu thủ ngẫu nhiên?`)) { await rollGacha(item.price); }
     } else {
-        currentItemToApply = item;
-        document.getElementById('apply-item-name').textContent = item.name;
-        
-        const container = document.getElementById('apply-item-list-container');
-        container.innerHTML = '';
+        currentItemToApply = item; document.getElementById('apply-item-name').textContent = item.name;
+        const container = document.getElementById('apply-item-list-container'); container.innerHTML = '';
         
         let sortedPlayers = [...globalPlayersList].sort((a,b) => b.ovr - a.ovr);
         sortedPlayers.forEach(p => {
@@ -979,65 +954,41 @@ window.buyItem = async (itemId) => {
     }
 };
 
-window.closeApplyItemModal = () => {
-    document.getElementById('apply-item-modal').classList.add('hidden');
-    currentItemToApply = null;
-};
+window.closeApplyItemModal = () => { document.getElementById('apply-item-modal').classList.add('hidden'); currentItemToApply = null; };
 
 window.applyItemToPlayer = async (playerId) => {
-    const p = globalPlayersMap[playerId];
-    const item = currentItemToApply;
+    const p = globalPlayersMap[playerId]; const item = currentItemToApply;
     if (!p || !item) return;
-
-    if (myBudget < item.price) {
-        window.showToast("Bạn không đủ tiền!", "error");
-        return;
-    }
+    if (myBudget < item.price) { window.showToast("Bạn không đủ tiền!", "error"); return; }
 
     if (confirm(`Sử dụng [${item.name}] cho ${p.name} với giá €${item.price.toLocaleString()}?`)) {
         try {
             window.closeApplyItemModal();
             
-            myBudget -= item.price;
-            updateBudgetDisplay();
+            myBudget -= item.price; updateBudgetDisplay();
             await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { budget: myBudget }, { merge: true });
 
             if (!p.bonusStats) p.bonusStats = { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 };
 
             if (item.type === 'stat') {
-                p.stats[item.stat] += item.amount;
-                p.bonusStats[item.stat] = (p.bonusStats[item.stat] || 0) + item.amount;
-                if(p.stats[item.stat] > 99) {
-                    const excess = p.stats[item.stat] - 99;
-                    p.stats[item.stat] = 99;
-                    p.bonusStats[item.stat] -= excess;
-                }
+                p.stats[item.stat] += item.amount; p.bonusStats[item.stat] = (p.bonusStats[item.stat] || 0) + item.amount;
+                if(p.stats[item.stat] > 99) { const excess = p.stats[item.stat] - 99; p.stats[item.stat] = 99; p.bonusStats[item.stat] -= excess; }
             } else if (item.type === 'stat_multi') {
                 for (const [key, value] of Object.entries(item.stats)) {
-                    p.stats[key] += value;
-                    p.bonusStats[key] = (p.bonusStats[key] || 0) + value;
-                    if(p.stats[key] > 99) {
-                        const excess = p.stats[key] - 99;
-                        p.stats[key] = 99;
-                        p.bonusStats[key] -= excess;
-                    }
+                    p.stats[key] += value; p.bonusStats[key] = (p.bonusStats[key] || 0) + value;
+                    if(p.stats[key] > 99) { const excess = p.stats[key] - 99; p.stats[key] = 99; p.bonusStats[key] -= excess; }
                 }
             }
 
-            p.ovr = recalculateOVR(p.pos, p.stats);
-            p.value = p.ovr * 100000;
-            p.itemsUsed = (p.itemsUsed || 0) + 1;
+            p.ovr = recalculateOVR(p.pos, p.stats); p.value = p.ovr * 100000; p.itemsUsed = (p.itemsUsed || 0) + 1;
 
             await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', p.id), { 
                 stats: p.stats, bonusStats: p.bonusStats, ovr: p.ovr, value: p.value, itemsUsed: p.itemsUsed 
             }, { merge: true });
 
-            renderSquadList();
-            renderPitch();
+            renderSquadList(); renderPitch();
             window.showToast(`Đã sử dụng vật phẩm thành công! Chỉ số OVR mới của ${p.name} là ${p.ovr}.`, 'success');
-        } catch(e) {
-            window.showToast("Lỗi khi dùng vật phẩm: " + e.message);
-        }
+        } catch(e) { window.showToast("Lỗi khi dùng vật phẩm: " + e.message); }
     }
 };
 
@@ -1048,9 +999,7 @@ const rollGacha = async (price) => {
 
         const pos = POSITIONS[Math.floor(Math.random() * POSITIONS.length)];
         const name = "Young " + FOREIGN_NAMES[Math.floor(Math.random() * FOREIGN_NAMES.length)];
-        
-        const ovr = Math.floor(Math.random() * 16) + 60;
-        const val = ovr * 70000; 
+        const ovr = Math.floor(Math.random() * 16) + 60; const val = ovr * 70000; 
         let stats = { PAC: ovr+2, SHO: ovr-2, PAS: ovr+1, DRI: ovr, DEF: ovr, PHY: ovr }; 
         
         const newPlayerRef = doc(collection(db, 'artifacts', appId, 'users', currentUserId, 'players'));
@@ -1061,21 +1010,9 @@ const rollGacha = async (price) => {
         };
         await setDoc(newPlayerRef, playerData);
 
-        playerData.id = newPlayerRef.id; 
-        globalPlayersList.push(playerData); 
-        globalPlayersMap[playerData.id] = playerData;
+        playerData.id = newPlayerRef.id; globalPlayersList.push(playerData); globalPlayersMap[playerData.id] = playerData;
         
         renderSquadList();
         window.showToast(`Tuyệt vời! Bạn vừa mở ra cầu thủ trẻ ${name} (OVR ${playerData.ovr}) từ Gói Vô Danh!`, 'success');
-    } catch (e) {
-        window.showToast("Lỗi khi mở gói cầu thủ: " + e.message);
-    }
+    } catch (e) { window.showToast("Lỗi khi mở gói cầu thủ: " + e.message); }
 };
-```
-
-**Cách hoạt động mới:**
-1. Mỗi cầu thủ giờ đây sẽ tự động sở hữu thêm bộ đếm `bonusStats` lưu trực tiếp trên Firestore (các cầu thủ cũ không có sẽ tự mặc định là 0).
-2. Khi dùng Item, nếu vượt ngưỡng tối đa 99, hệ thống sẽ tự động trừ hao phần `bonusStats` thừa để đảm bảo thuật toán không bị lỗi số âm.
-3. Trong bảng chi tiết, nếu có điểm cộng, thông số sẽ tách làm 2 mảnh: điểm gốc màu trắng đứng trước, và `+3` màu xanh in đậm cực đẹp theo sau!
-
-Hãy làm mới trình duyệt và mua thử 1 đôi giày đập vào thẻ của cầu thủ để xem dòng text màu xanh `+3` hiện lên nhé!
