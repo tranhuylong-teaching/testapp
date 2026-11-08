@@ -141,14 +141,36 @@
                         </div>
                     </div>
 
-                    <div id="match-setup" class="bg-slate-800 rounded-2xl border border-slate-700/50 p-6 shadow-xl relative overflow-hidden">
-                        <div class="flex justify-between items-center mb-6"><h2 class="text-lg md:text-xl font-bold text-white">Vòng Đấu <span id="league-current-round" class="text-green-400">1</span>/31</h2></div>
-                        <div class="flex flex-row items-center justify-center gap-4 md:gap-8 mb-6">
-                            <div class="text-center w-24 md:w-32"><div class="w-12 h-12 md:w-16 md:h-16 bg-green-900/50 rounded-full mx-auto flex items-center justify-center text-xl md:text-2xl border border-green-500 mb-2 shadow-[0_0_10px_rgba(34,197,94,0.3)]">🛡️</div><h3 class="font-bold text-xs md:text-sm truncate" id="league-home-name">Đội bạn</h3></div>
-                            <div class="text-lg md:text-xl font-bold text-slate-500">VS</div>
-                            <div class="text-center w-24 md:w-32"><div class="w-12 h-12 md:w-16 md:h-16 bg-red-900/50 rounded-full mx-auto flex items-center justify-center text-xl md:text-2xl border border-red-500 mb-2">🤖</div><h3 class="font-bold text-xs md:text-sm text-slate-300 truncate" id="league-away-name">Đang tải...</h3></div>
+                                        <div id="match-setup" class="bg-slate-800 rounded-2xl border border-slate-700/50 p-4 md:p-6 shadow-xl relative overflow-hidden">
+                        <div class="flex justify-between items-center mb-4"><h2 class="text-lg md:text-xl font-bold text-white">Vòng Đấu <span id="league-current-round" class="text-green-400">1</span>/31</h2></div>
+                        
+                        <!-- BẢNG SO SÁNH CHỈ SỐ -->
+                        <div class="grid grid-cols-3 gap-2 md:gap-4 items-center mb-6">
+                            <div class="text-center flex flex-col items-center">
+                                <div class="w-12 h-12 md:w-16 md:h-16 bg-green-900/50 rounded-full flex items-center justify-center text-xl md:text-2xl border border-green-500 mb-2 shadow-[0_0_10px_rgba(34,197,94,0.3)]">🛡️</div>
+                                <h3 class="font-bold text-xs md:text-sm truncate w-full" id="league-home-name">Đội bạn</h3>
+                                <div class="text-2xl md:text-3xl font-black text-green-400 mt-1" id="setup-home-ovr">0</div>
+                            </div>
+                            
+                            <div class="flex flex-col gap-2 md:gap-3 text-[10px] md:text-xs font-bold uppercase text-slate-400">
+                                <div class="text-center text-lg md:text-xl font-black text-slate-500 mb-1 md:mb-2">VS</div>
+                                <div class="flex justify-between items-center bg-slate-900/50 rounded px-1 md:px-2 py-1"><span class="text-green-400 w-6 text-center" id="setup-home-att">0</span><span class="text-center flex-1">Tấn công</span><span class="text-red-400 w-6 text-center" id="setup-away-att">0</span></div>
+                                <div class="flex justify-between items-center bg-slate-900/50 rounded px-1 md:px-2 py-1"><span class="text-green-400 w-6 text-center" id="setup-home-mid">0</span><span class="text-center flex-1">Tiền vệ</span><span class="text-red-400 w-6 text-center" id="setup-away-mid">0</span></div>
+                                <div class="flex justify-between items-center bg-slate-900/50 rounded px-1 md:px-2 py-1"><span class="text-green-400 w-6 text-center" id="setup-home-def">0</span><span class="text-center flex-1">Phòng ngự</span><span class="text-red-400 w-6 text-center" id="setup-away-def">0</span></div>
+                            </div>
+                            
+                            <div class="text-center flex flex-col items-center">
+                                <div class="w-12 h-12 md:w-16 md:h-16 bg-red-900/50 rounded-full flex items-center justify-center text-xl md:text-2xl border border-red-500 mb-2">🤖</div>
+                                <h3 class="font-bold text-xs md:text-sm text-slate-300 truncate w-full" id="league-away-name">Đang tải...</h3>
+                                <div class="text-2xl md:text-3xl font-black text-red-400 mt-1" id="setup-away-ovr">0</div>
+                            </div>
                         </div>
-                        <div class="text-center"><button id="start-league-match-btn" class="px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 text-white font-bold rounded-xl shadow-lg transition text-sm md:text-base">Vào Sân Thi Đấu</button></div>
+                        
+                        <!-- NÚT ĐIỀU HƯỚNG -->
+                        <div class="flex flex-col sm:flex-row gap-3 justify-center">
+                            <button onclick="document.getElementById('nav-tactics').click(); if(document.getElementById('nav-tactics-mob')) document.getElementById('nav-tactics-mob').click();" class="px-4 py-2 md:px-6 md:py-3 bg-slate-700 hover:bg-slate-600 text-white font-bold rounded-xl transition text-xs md:text-sm shadow-lg border border-slate-600">📋 Chỉnh Chiến thuật</button>
+                            <button id="start-league-match-btn" class="px-6 py-2 md:px-8 md:py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 text-white font-bold rounded-xl shadow-[0_4px_15px_rgba(34,197,94,0.4)] transition text-sm md:text-base">Vào Sân Thi Đấu ⚽</button>
+                        </div>
                     </div>
                     
                     <div id="match-live" class="hidden flex flex-col h-[calc(100vh-200px)] md:h-[calc(100vh-140px)] gap-4">
