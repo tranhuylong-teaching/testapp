@@ -1,4 +1,4 @@
-import { auth, db, appId, BOT_CITY_NAMES, RESERVE_BOT_NAMES, POSITIONS, FOREIGN_NAMES, RICH_CLUBS, STORE_ITEMS, getPrizeMoney, recalculateOVR } from './firebase-config.js';
+import { auth, db, appId, VN_CLUBS_POOL, RICH_CLUBS, STORE_ITEMS, getPrizeMoney, recalculateOVR, generatePlayerName, POSITIONS } from './firebase-config.js';
 import { showLoading, hideLoading, showToast } from './ui-helpers.js';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -14,6 +14,14 @@ let currentMarketList = []; let currentlyViewingPlayerId = null; let currentSlot
 const TABS = ['overview', 'squad', 'tactics', 'league', 'transfer', 'store', 'facilities'];
 
 window.showToast = showToast; window.showLoading = showLoading; window.hideLoading = hideLoading;
+
+// HÀM HỖ TRỢ ĐỘ HIẾM (RARITY)
+const getRarityClass = (ovr) => {
+    if (ovr >= 90) return { text: 'text-fuchsia-400 drop-shadow-[0_0_5px_rgba(232,121,249,0.8)]', bg: 'bg-fuchsia-900', border: 'border-fuchsia-500 shadow-[0_0_15px_rgba(232,121,249,0.5)]' };
+    if (ovr >= 80) return { text: 'text-yellow-400', bg: 'bg-yellow-900/50', border: 'border-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.3)]' };
+    if (ovr >= 65) return { text: 'text-slate-300', bg: 'bg-slate-700', border: 'border-slate-400' };
+    return { text: 'text-orange-600', bg: 'bg-orange-950', border: 'border-orange-700' };
+};
 
 const updateHeaderDisplay = () => {
     document.getElementById('budget-display').textContent = `€${(myBudget/1000000).toFixed(2)}M`;
@@ -82,8 +90,7 @@ onAuthStateChanged(auth, (user) => {
     if (user) { 
         document.getElementById('auth-container').classList.add('hidden'); document.getElementById('dashboard-section').classList.remove('hidden'); 
         currentUserId = user.uid; document.getElementById('user-email-display').textContent = user.email; loadGameData(user.uid); 
-    } 
-    else { 
+    } else { 
         document.getElementById('dashboard-section').classList.add('hidden'); document.getElementById('auth-container').classList.remove('hidden'); 
         document.getElementById('quick-play-btn').classList.add('hidden');
     }
@@ -126,9 +133,7 @@ const loadGameData = async (uid) => {
                 leagueState = leagueSnap.data(); if (!leagueState.promotedBots) leagueState.promotedBots = []; if (!leagueState.pendingBuys) leagueState.pendingBuys = []; if (!leagueState.pendingSells) leagueState.pendingSells = []; if (!leagueState.rankHistory) leagueState.rankHistory = [];
             } else { await initLeagueData(uid, myClubName); }
             switchView('overview');
-            
             if (leagueState.currentRound <= 31) document.getElementById('quick-play-btn').classList.remove('hidden');
-            else document.getElementById('quick-play-btn').classList.add('hidden');
         } else { document.getElementById('init-club-modal').classList.remove('hidden'); }
     } catch(e) { showToast("Lỗi tải dữ liệu: " + e.message); } finally { hideLoading(); }
 };
@@ -143,14 +148,22 @@ document.getElementById('create-club-btn').addEventListener('click', async () =>
             const isStar = (i === superstarIndex); const baseMin = isStar ? 75 : 30; const baseMax = isStar ? 95 : 45; const rnd = () => Math.floor(Math.random() * (baseMax - baseMin + 1)) + baseMin;
             let stats = { PAC: rnd(), SHO: rnd(), PAS: rnd(), DRI: rnd(), DEF: rnd(), PHY: rnd() }; let ovr = recalculateOVR(pos, stats);
             const playerRef = doc(collection(db, 'artifacts', appId, 'users', currentUserId, 'players'));
-            batch.set(playerRef, { name: FOREIGN_NAMES[i % FOREIGN_NAMES.length] + (isStar ? " ⭐" : ""), pos: pos, ovr: ovr, stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, stamina: 100, injury: 0, value: ovr * 100000, isListed: false, itemsUsed: 0 });
+            batch.set(playerRef, { name: generatePlayerName(isStar), pos: pos, ovr: ovr, stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, stamina: 100, injury: 0, value: ovr * 100000, isListed: false, itemsUsed: 0 });
         });
         await batch.commit(); await initLeagueData(currentUserId, clubName); document.getElementById('init-club-modal').classList.add('hidden'); showToast("Khởi tạo Câu lạc bộ thành công!", "success"); await loadGameData(currentUserId);
     } catch(e) { showToast("Lỗi khi tạo CLB: " + e.message); } finally { hideLoading(); }
 });
 
 const initLeagueData = async (uid, overrideName = null) => {
-    let bots = []; for (let i = 0; i < 31; i++) { const ovr = Math.floor(Math.random() * 20) + 60; bots.push({ id: `bot_${Date.now()}_${i}`, name: `${BOT_CITY_NAMES[i]} FC`, isUser: false, ovr: ovr, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 }); }
+    let bots = []; 
+    // Randomly pick 31 unique clubs for the league
+    let availableClubs = [...VN_CLUBS_POOL].filter(c => c !== overrideName);
+    availableClubs.sort(() => Math.random() - 0.5);
+
+    for (let i = 0; i < 31; i++) { 
+        const ovr = Math.floor(Math.random() * 20) + 60; 
+        bots.push({ id: `bot_${Date.now()}_${i}`, name: availableClubs[i], isUser: false, ovr: ovr, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 }); 
+    }
     let initialStandings = [...bots, { id: 'user', name: overrideName || myClubName, isUser: true, ovr: 0, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 }];
     let userSchedule = bots.map(b => b.id).sort(() => Math.random() - 0.5);
     leagueState = { currentRound: 1, standings: initialStandings, schedule: userSchedule, friendlyMatchesPlayed: 0, promotedBots: [], pendingBuys: [], pendingSells: [], rankHistory: [] };
@@ -171,8 +184,9 @@ const renderSquadList = () => {
         const stColor = p.injury > 0 ? 'text-red-500 font-bold' : (p.stamina >= 80 ? 'text-green-400' : (p.stamina >= 50 ? 'text-yellow-400' : 'text-red-400')); 
         const stBg = p.stamina >= 80 ? 'bg-green-400' : (p.stamina >= 50 ? 'bg-yellow-400' : 'bg-red-500');
         const stIcon = p.injury > 0 ? `🚑 Chấn thương` : `⚡ ${p.stamina}%`;
+        const rarity = getRarityClass(p.ovr);
 
-        tbody.innerHTML += `<tr class="hover:bg-slate-700/50 transition-colors cursor-pointer" onclick="window.openPlayerDetail('${p.id}')"><td class="p-3 md:p-4 pl-4 md:pl-6"><span class="${posColors[p.pos]} text-white text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-1 rounded w-10 md:w-12 inline-block text-center">${p.pos}</span></td><td class="p-3 md:p-4 font-medium text-white truncate max-w-[100px] sm:max-w-none"><div class="mb-1 truncate">${p.name}</div><div class="flex items-center gap-1 md:gap-2 text-[9px] md:text-[10px] ${stColor}"><span>${stIcon}</span>${p.injury > 0 ? '' : `<div class="w-12 md:w-16 bg-slate-700 h-1 md:h-1.5 rounded-full overflow-hidden hidden sm:block"><div class="${stBg} h-full" style="width: ${p.stamina}%"></div></div>`}</div></td><td class="p-3 md:p-4 text-center font-bold text-green-400">${p.ovr}</td><td class="p-3 md:p-4 text-center">${statusHtml}</td><td class="p-3 md:p-4 text-right pr-4 md:pr-6 text-yellow-400">€${(p.value || p.ovr*100000).toLocaleString()}</td></tr>`;
+        tbody.innerHTML += `<tr class="hover:bg-slate-700/50 transition-colors cursor-pointer" onclick="window.openPlayerDetail('${p.id}')"><td class="p-3 md:p-4 pl-4 md:pl-6"><span class="${posColors[p.pos]} text-white text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-1 rounded w-10 md:w-12 inline-block text-center">${p.pos}</span></td><td class="p-3 md:p-4 font-medium text-white max-w-[120px] sm:max-w-none"><div class="mb-1 truncate">${p.name}</div><div class="flex items-center gap-1 md:gap-2 text-[9px] md:text-[10px] ${stColor}"><span>${stIcon}</span>${p.injury > 0 ? '' : `<div class="w-12 md:w-16 bg-slate-700 h-1 md:h-1.5 rounded-full overflow-hidden hidden sm:block"><div class="${stBg} h-full" style="width: ${p.stamina}%"></div></div>`}</div></td><td class="p-3 md:p-4 text-center font-bold ${rarity.text}">${p.ovr}</td><td class="p-3 md:p-4 text-center">${statusHtml}</td><td class="p-3 md:p-4 text-right pr-4 md:pr-6 text-yellow-400">€${(p.value || p.ovr*100000).toLocaleString()}</td></tr>`;
     });
 };
 
@@ -180,8 +194,26 @@ window.openPlayerDetail = (playerId) => {
     const p = globalPlayersMap[playerId]; if(!p) return; currentlyViewingPlayerId = playerId;
     const st = p.stats || { PAC: 0, SHO: 0, PAS: 0, DRI: 0, DEF: 0, PHY: 0 }; const bSt = p.bonusStats || { PAC: 0, SHO: 0, PAS: 0, DRI: 0, DEF: 0, PHY: 0 };
     const posColors = { GK: 'bg-yellow-600', DEF: 'bg-blue-600', MID: 'bg-green-600', FWD: 'bg-red-600' };
+    const rarity = getRarityClass(p.ovr);
     
-    document.getElementById('detail-name').textContent = p.name; document.getElementById('detail-pos').textContent = p.pos; document.getElementById('detail-pos').className = `${posColors[p.pos]} text-white text-[10px] md:text-xs font-bold px-2 py-1 rounded`; document.getElementById('detail-bg-pos').textContent = p.pos; document.getElementById('detail-ovr').textContent = p.ovr; document.getElementById('detail-items-used').textContent = p.itemsUsed || 0;
+    // Gắn Dicebear Avatar và Hiệu ứng độ hiếm
+    const avatarEl = document.querySelector('#player-detail-modal .rounded-full.mx-auto');
+    if (avatarEl) {
+        avatarEl.innerHTML = `<img src="https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(p.name.replace(/⭐/g, '').trim())}" class="w-full h-full object-cover bg-slate-200" />`;
+        avatarEl.className = `w-20 h-20 md:w-24 md:h-24 border-4 rounded-full mx-auto mb-3 flex items-center justify-center overflow-hidden shadow-lg transition-all ${rarity.border} ${rarity.bg}`;
+    }
+
+    document.getElementById('detail-name').textContent = p.name; 
+    document.getElementById('detail-name').className = `text-xl md:text-2xl font-bold mb-1 ${rarity.text}`;
+    
+    document.getElementById('detail-pos').textContent = p.pos; document.getElementById('detail-pos').className = `${posColors[p.pos]} text-white text-[10px] md:text-xs font-bold px-2 py-1 rounded`; 
+    document.getElementById('detail-bg-pos').textContent = p.pos; 
+    
+    document.getElementById('detail-ovr').textContent = p.ovr; 
+    document.getElementById('detail-ovr').className = `text-lg md:text-xl font-bold ${rarity.text}`;
+    
+    document.getElementById('detail-items-used').textContent = p.itemsUsed || 0;
+    
     ['pac','sho','pas','dri','def','phy'].forEach(s => {
         const upperS = s.toUpperCase(); const total = st[upperS] || 0; const bonus = bSt[upperS] || 0; const base = total - bonus; const displayEl = document.getElementById(`detail-${s}`);
         if (bonus > 0) { displayEl.innerHTML = `${base} <span class="text-green-400 font-bold ml-1">+${bonus}</span>`; } else { displayEl.textContent = total; }
@@ -226,10 +258,13 @@ const renderPitch = () => {
         for(let i=0; i<rowCount; i++) {
             const p = startingXI[slotIndex] ? globalPlayersMap[startingXI[slotIndex]] : null; const currentIndex = slotIndex; let pHtml = "";
             if (p) {
-                const isOutOfPos = p.pos !== expectedPos; const borderClass = isOutOfPos ? 'border-yellow-500 shadow-[0_0_10px_rgba(234,179,8,0.5)]' : 'border-green-500'; 
+                const isOutOfPos = p.pos !== expectedPos; 
                 const penalty = p.stamina < 60 ? Math.floor((60 - p.stamina) / 2) : 0; let effOvr = Math.max(1, p.ovr - penalty); if(p.injury > 0) effOvr = '🚑';
                 const stBg = p.stamina >= 80 ? 'bg-green-400' : (p.stamina >= 50 ? 'bg-yellow-400' : 'bg-red-500');
-                pHtml = `<div class="w-8 h-8 sm:w-10 sm:h-10 bg-slate-800 border-2 ${borderClass} rounded-full flex items-center justify-center font-bold text-xs sm:text-sm z-10 shadow-lg relative">${effOvr}${penalty > 0 && p.injury == 0 ? `<div class="absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2 bg-red-600 text-white text-[8px] sm:text-[9px] font-bold px-1 rounded-full shadow">-${penalty}</div>` : ''}</div><div class="mt-1 w-12 sm:w-14 flex flex-col items-center"><div class="bg-black/80 px-1 py-0.5 rounded text-[8px] sm:text-[10px] text-white truncate max-w-full z-10">${p.name}</div>${p.injury > 0 ? '' : `<div class="w-full bg-slate-800 h-1 sm:h-1.5 mt-0.5 rounded border border-slate-700 overflow-hidden z-10"><div class="${stBg} h-full" style="width: ${p.stamina}%"></div></div>`}</div>`;
+                const rarity = getRarityClass(effOvr);
+                const borderClass = isOutOfPos ? 'border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]' : rarity.border; 
+                
+                pHtml = `<div class="w-8 h-8 sm:w-10 sm:h-10 border-2 ${borderClass} ${rarity.bg} rounded-full flex items-center justify-center font-bold text-xs sm:text-sm z-10 relative overflow-hidden">${effOvr}${penalty > 0 && p.injury == 0 ? `<div class="absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2 bg-red-600 text-white text-[8px] sm:text-[9px] font-bold px-1 rounded-full shadow z-20">-${penalty}</div>` : ''}</div><div class="mt-1 w-12 sm:w-16 flex flex-col items-center"><div class="bg-black/80 px-1 py-0.5 rounded text-[8px] sm:text-[10px] text-white truncate max-w-full z-10">${p.name}</div>${p.injury > 0 ? '' : `<div class="w-full bg-slate-800 h-1 sm:h-1.5 mt-0.5 rounded border border-slate-700 overflow-hidden z-10"><div class="${stBg} h-full" style="width: ${p.stamina}%"></div></div>`}</div>`;
             } else { pHtml = `<div class="w-8 h-8 sm:w-10 sm:h-10 bg-white/10 hover:bg-white/20 border-2 border-dashed border-white/40 rounded-full flex items-center justify-center text-white/50 text-[10px] sm:text-xs font-bold z-10 transition">${expectedPos}</div>`; }
             rowDiv.innerHTML += `<div class="relative flex flex-col items-center w-14 sm:w-16 cursor-pointer hover:scale-110 transition-transform" onclick="window.openBenchSelect(${currentIndex}, '${expectedPos}')">${pHtml}</div>`; slotIndex++;
         }
@@ -253,7 +288,8 @@ window.openBenchSelect = (slotIndex, expectedPos) => {
         const isPlaying = startingXI.includes(p.id); if (isPlaying && startingXI[slotIndex] !== p.id) return;
         const isCurrent = startingXI[slotIndex] === p.id; const stColor = p.injury > 0 ? 'text-red-500 font-bold' : (p.stamina >= 80 ? 'text-green-400' : 'text-yellow-400');
         const clickAction = p.injury > 0 ? `window.showToast('Cầu thủ đang chấn thương, không thể thi đấu!')` : `window.assignPlayerToSlot('${p.id}')`;
-        container.innerHTML += `<div onclick="${clickAction}" class="flex justify-between items-center p-2 md:p-3 hover:bg-slate-700/50 border-b border-slate-700/50 cursor-pointer rounded ${isCurrent ? 'bg-green-900/30' : (p.injury > 0 ? 'opacity-50' : '')}"><div class="flex items-center gap-2 md:gap-3"><span class="${posColors[p.pos]} text-white text-[9px] md:text-[10px] font-bold px-1 md:px-2 py-0.5 rounded w-8 md:w-10 text-center">${p.pos}</span><div class="flex flex-col"><span class="text-white text-xs md:text-sm ${isCurrent ? 'font-bold' : ''}">${p.name}</span><span class="text-[9px] md:text-[10px] ${stColor}">${p.injury > 0 ? '🚑 Chấn thương' : `⚡ ${p.stamina}%`}</span></div></div><span class="text-green-400 font-bold text-sm md:text-base">${p.ovr}</span></div>`;
+        const rarity = getRarityClass(p.ovr);
+        container.innerHTML += `<div onclick="${clickAction}" class="flex justify-between items-center p-2 md:p-3 hover:bg-slate-700/50 border-b border-slate-700/50 cursor-pointer rounded ${isCurrent ? 'bg-green-900/30' : (p.injury > 0 ? 'opacity-50' : '')}"><div class="flex items-center gap-2 md:gap-3"><span class="${posColors[p.pos]} text-white text-[9px] md:text-[10px] font-bold px-1 md:px-2 py-0.5 rounded w-8 md:w-10 text-center">${p.pos}</span><div class="flex flex-col"><span class="text-white text-xs md:text-sm ${isCurrent ? 'font-bold' : ''}">${p.name}</span><span class="text-[9px] md:text-[10px] ${stColor}">${p.injury > 0 ? '🚑 Chấn thương' : `⚡ ${p.stamina}%`}</span></div></div><span class="font-bold text-sm md:text-base ${rarity.text}">${p.ovr}</span></div>`;
     });
     document.getElementById('select-player-modal').classList.remove('hidden');
 };
@@ -269,8 +305,10 @@ document.getElementById('save-tactics-btn').addEventListener('click', async () =
 
 // ================= MODULE 6: TRANSFER MARKET =================
 const generateMarketPlayers = () => {
-    currentMarketList = []; for(let i=0; i<8; i++) { const isStar = Math.random() > 0.8; const pos = POSITIONS[Math.floor(Math.random()*POSITIONS.length)]; const name = FOREIGN_NAMES[Math.floor(Math.random()*FOREIGN_NAMES.length)] + " " + Math.floor(Math.random()*99); const ovr = isStar ? Math.floor(Math.random()*15)+80 : Math.floor(Math.random()*20)+50; const val = ovr * (isStar ? 150000 : 80000); let stats = { PAC: ovr, SHO: ovr, PAS: ovr, DRI: ovr, DEF: ovr, PHY: ovr };
-        currentMarketList.push({ id: 'market_' + Date.now() + i, name: name + (isStar?"⭐":""), pos: pos, ovr: ovr, value: val, stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, stamina: 100, injury: 0, isListed: false, itemsUsed: 0 });
+    currentMarketList = []; for(let i=0; i<8; i++) { 
+        const isStar = Math.random() > 0.8; const pos = POSITIONS[Math.floor(Math.random()*POSITIONS.length)]; 
+        const ovr = isStar ? Math.floor(Math.random()*15)+80 : Math.floor(Math.random()*20)+50; const val = ovr * (isStar ? 150000 : 80000); let stats = { PAC: ovr, SHO: ovr, PAS: ovr, DRI: ovr, DEF: ovr, PHY: ovr };
+        currentMarketList.push({ id: 'market_' + Date.now() + i, name: generatePlayerName(isStar), pos: pos, ovr: ovr, value: val, stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, stamina: 100, injury: 0, isListed: false, itemsUsed: 0 });
     }
 };
 
@@ -279,7 +317,8 @@ const renderTransferMarket = () => {
     const tbody = document.getElementById('market-list-body'); tbody.innerHTML = ''; const posColors = { GK: 'bg-yellow-600', DEF: 'bg-blue-600', MID: 'bg-green-600', FWD: 'bg-red-600' };
     currentMarketList.forEach(p => {
         let isPending = leagueState.pendingBuys?.find(b => b.marketId === p.id); let btnHtml = isPending ? `<button disabled class="bg-slate-700 text-slate-400 text-[10px] md:text-xs px-2 md:px-3 py-1.5 rounded font-bold shadow cursor-not-allowed">Chờ duyệt</button>` : `<button onclick="window.makeBuyOffer('${p.id}')" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] md:text-xs px-2 md:px-3 py-1.5 rounded font-bold shadow transition">Đặt Mua</button>`;
-        tbody.innerHTML += `<tr class="hover:bg-slate-700/50 border-b border-slate-700/30 transition-colors"><td class="p-3 md:p-4 pl-4 md:pl-6"><span class="${posColors[p.pos]} text-white text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-1 rounded w-10 md:w-12 inline-block text-center">${p.pos}</span></td><td class="p-3 md:p-4 font-medium text-white max-w-[120px] truncate">${p.name} ${p.ovr >= 85 ? '<span class="text-[9px] text-yellow-400 block sm:inline">(Fame > 60)</span>' : ''}</td><td class="p-3 md:p-4 text-center font-bold text-green-400">${p.ovr}</td><td class="p-3 md:p-4 text-right pr-4 md:pr-6 text-yellow-400">€${p.value.toLocaleString()}</td><td class="p-3 md:p-4">${btnHtml}</td></tr>`;
+        const rarity = getRarityClass(p.ovr);
+        tbody.innerHTML += `<tr class="hover:bg-slate-700/50 border-b border-slate-700/30 transition-colors"><td class="p-3 md:p-4 pl-4 md:pl-6"><span class="${posColors[p.pos]} text-white text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-1 rounded w-10 md:w-12 inline-block text-center">${p.pos}</span></td><td class="p-3 md:p-4 font-medium text-white max-w-[120px] truncate">${p.name} ${p.ovr >= 85 ? '<span class="text-[9px] text-yellow-400 block sm:inline">(Fame > 60)</span>' : ''}</td><td class="p-3 md:p-4 text-center font-bold ${rarity.text}">${p.ovr}</td><td class="p-3 md:p-4 text-right pr-4 md:pr-6 text-yellow-400">€${p.value.toLocaleString()}</td><td class="p-3 md:p-4">${btnHtml}</td></tr>`;
     });
 };
 document.getElementById('refresh-market-btn').addEventListener('click', () => { generateMarketPlayers(); renderTransferMarket(); });
@@ -367,7 +406,9 @@ const processTransferMarket = async (logContainer) => {
         for (let s of leagueState.pendingSells) {
             let botOffer = Math.floor(s.baseValue * (0.7 + Math.random() * 0.5));
             if (botOffer >= s.askAmount) {
-                budgetEarned += botOffer; let randomBot = BOT_CITY_NAMES[Math.floor(Math.random()*BOT_CITY_NAMES.length)] + " FC";
+                budgetEarned += botOffer; 
+                let currentNames = leagueState.standings.map(t => t.name);
+                let randomBot = currentNames[Math.floor(Math.random()*currentNames.length)];
                 await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', s.playerId)); globalPlayersList = globalPlayersList.filter(x => x.id !== s.playerId); delete globalPlayersMap[s.playerId]; startingXI = startingXI.map(id => id === s.playerId ? null : id);
                 resolvedLogs.push(`<div class="text-green-400 mb-1">🤝 <b>CHỐT ĐƠN:</b> Bán ${s.playerName} cho ${randomBot} (Giá <b>€${botOffer.toLocaleString()}</b>).</div>`);
             } else { remainingSells.push(s); resolvedLogs.push(`<div class="text-slate-400 mb-1">⏳ <b>Ế ẨM:</b> ${s.playerName} chưa ai mua. Đang tiếp tục rao.</div>`); }
@@ -495,10 +536,10 @@ const processFacilitiesAndStamina = async (logContainer) => {
     if(!myFacilities.scoutedPlayer) {
         myFacilities.scoutingCooldown--;
         if(myFacilities.scoutingCooldown <= 0) {
-            const pos = POSITIONS[Math.floor(Math.random() * POSITIONS.length)]; const name = "Wonderkid " + FOREIGN_NAMES[Math.floor(Math.random() * FOREIGN_NAMES.length)];
+            const pos = POSITIONS[Math.floor(Math.random() * POSITIONS.length)]; const name = generatePlayerName();
             const ovr = 60 + (myFacilities.scouting * 4) + Math.floor(Math.random() * 5); const val = ovr * 50000; let stats = { PAC: ovr+1, SHO: ovr, PAS: ovr+2, DRI: ovr, DEF: ovr, PHY: ovr };
             myFacilities.scoutedPlayer = { name: name, pos: pos, ovr: recalculateOVR(pos, stats), stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, stamina: 100, injury: 0, value: val, isListed: false, itemsUsed: 0 };
-            facLogs.push(`<div class="text-yellow-400">🕵️ <b>TUYỂN TRẠCH:</b> Phát hiện tài năng trẻ OVR ${myFacilities.scoutedPlayer.ovr}.</div>`);
+            facLogs.push(`<div class="text-yellow-400">🕵️ <b>TUYỂN TRẠCH:</b> Phát hiện tài năng trẻ ${name}.</div>`);
         }
     }
 
@@ -520,15 +561,20 @@ const renderLeagueView = () => {
         let userRank = leagueState.standings.findIndex(t => t.isUser) + 1; let prize = getPrizeMoney(userRank); document.getElementById('final-rank').textContent = userRank; document.getElementById('final-prize').textContent = `€${prize.toLocaleString()}`;
         const summaryBoard = document.getElementById('season-summary-board'); let goldTeam = leagueState.standings[0]; let silverTeam = leagueState.standings[10]; let bronzeTeam = leagueState.standings[20];
         let goldBoard = `<div class="flex-1"><h4 class="font-bold text-yellow-400 mb-2 border-b border-slate-700 pb-1">🏆 Các Nhà Vô Địch</h4><div class="text-yellow-400">🥇 Cúp Vàng: <span class="font-bold">${goldTeam?.name || 'N/A'}</span></div><div class="text-slate-300">🥈 Đĩa Bạc: <span class="font-bold">${silverTeam?.name || 'N/A'}</span></div><div class="text-orange-400">🥉 Khiên Đồng: <span class="font-bold">${bronzeTeam?.name || 'N/A'}</span></div></div>`;
+        
         let botStandings = leagueState.standings.filter(t => !t.isUser); let relegatedBots = botStandings.slice(-2);
         if(!leagueState.promotedBots || leagueState.promotedBots.length === 0) {
-            let currentNames = leagueState.standings.map(t => t.name.replace(' FC', '')); let availableReserves = RESERVE_BOT_NAMES.filter(name => !currentNames.includes(name)); availableReserves.sort(() => Math.random() - 0.5);
-            leagueState.promotedBots = [ { name: availableReserves[0] + " FC" }, { name: availableReserves[1] + " FC" } ]; setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState);
+            let currentNames = leagueState.standings.map(t => t.name);
+            let availableReserves = VN_CLUBS_POOL.filter(name => !currentNames.includes(name));
+            availableReserves.sort(() => Math.random() - 0.5);
+            leagueState.promotedBots = [ { name: availableReserves[0] }, { name: availableReserves[1] } ]; 
+            setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState);
         }
         let relegateBoard = `<div class="flex-1"><h4 class="font-bold text-red-400 mb-2 border-b border-slate-700 pb-1">🔄 Lên / Xuống Hạng</h4><div class="text-red-400">🔻 Rớt hạng: ${relegatedBots.map(b=>b.name).join(', ')}</div><div class="text-green-400 mt-1">🔺 Thăng hạng: ${leagueState.promotedBots.map(b=>b.name).join(', ')}</div></div>`;
         summaryBoard.innerHTML = goldBoard + relegateBoard;
+        
         const friendlyBtn = document.getElementById('play-friendly-btn'); const playedFriendly = leagueState.friendlyMatchesPlayed || 0;
-        if (playedFriendly >= 5) { friendlyBtn.disabled = true; friendlyBtn.classList.add('opacity-50', 'cursor-not-allowed'); friendlyBtn.textContent = `⚽ Hết lượt Giao Hữu (5/5)`; } else { friendlyBtn.disabled = false; friendlyBtn.classList.remove('opacity-50', 'cursor-not-allowed'); friendlyBtn.textContent = `⚽ Đá Giao Hữu (${playedFriendly}/5)`; }
+        if (playedFriendly >= 5) { friendlyBtn.disabled = true; friendlyBtn.classList.add('opacity-50', 'cursor-not-allowed'); friendlyBtn.textContent = `⚽ Hết lượt Giao Hữu`; } else { friendlyBtn.disabled = false; friendlyBtn.classList.remove('opacity-50', 'cursor-not-allowed'); friendlyBtn.textContent = `⚽ Đá Giao Hữu (${playedFriendly}/5)`; }
     } else {
         document.getElementById('match-setup').classList.remove('hidden'); document.getElementById('season-end-panel').classList.add('hidden'); document.getElementById('league-current-round').textContent = leagueState.currentRound; document.getElementById('league-home-name').textContent = myClubName;
         const opponentId = leagueState.schedule[leagueState.currentRound - 1]; const opponent = leagueState.standings.find(t => t.id === opponentId); if(opponent) document.getElementById('league-away-name').textContent = opponent.name;
@@ -546,7 +592,8 @@ const startMatchEngine = (opponent, isFriendly) => {
     if(startingXI.includes(null) || teamPower.OVR === 0) { showToast("Vui lòng xếp đủ 11 cầu thủ vào Sân (Tab Chiến Thuật)!"); return; }
     let lowStaminaCount = startingXI.filter(id => globalPlayersMap[id] && globalPlayersMap[id].stamina < 30).length; if (lowStaminaCount >= 3) showToast("Cảnh báo: Đội có cầu thủ kiệt sức. Cẩn thận chấn thương!", "warning");
     
-    document.getElementById('quick-play-btn').classList.add('hidden'); // Ẩn nút Quick Play
+    document.getElementById('quick-play-btn').classList.add('hidden'); 
+    
     document.getElementById('match-setup').classList.add('hidden'); document.getElementById('season-end-panel').classList.add('hidden'); document.getElementById('league-table-container').classList.add('hidden'); document.getElementById('match-live').classList.remove('hidden'); document.getElementById('finish-match-btn').classList.add('hidden');
     let minute = 0; let homeScore = 0; let awayScore = 0;
     const logContainer = document.getElementById('match-logs-container'); logContainer.innerHTML = `<div class="text-slate-400 text-center text-xs md:text-sm py-2">Trọng tài thổi còi bắt đầu trận đấu ${isFriendly ? "Giao Hữu" : ""}!</div>`;
@@ -572,9 +619,10 @@ const startMatchEngine = (opponent, isFriendly) => {
             logContainer.scrollTop = logContainer.scrollHeight;
             const finishBtn = document.getElementById('finish-match-btn'); finishBtn.classList.remove('hidden');
             finishBtn.onclick = async () => { 
-                finishBtn.textContent = "Đang xử lý ngầm..."; finishBtn.disabled = true; 
-                await processTransferMarket(logContainer); await processFacilitiesAndStamina(logContainer); 
-                finishBtn.textContent = "Lưu kết quả"; finishBtn.disabled = false; 
+                finishBtn.textContent = "Đang xử lý ngầm TTCN & Cơ sở hạ tầng..."; finishBtn.disabled = true; 
+                await processTransferMarket(logContainer);
+                await processFacilitiesAndStamina(logContainer); 
+                finishBtn.textContent = "Lưu thành tích vòng đấu"; finishBtn.disabled = false; 
                 finishBtn.onclick = () => { if(isFriendly) finishFriendlyMatch(totalEarnings); else finishLeagueRound(homeScore, awayScore, totalEarnings); }; 
             };
         }
@@ -609,7 +657,9 @@ const finishLeagueRound = async (userScore, botScore, totalEarnings) => {
         
         if(endSeasonMessage) showToast(endSeasonMessage, "success"); else showToast("Đã lưu kết quả trận đấu!", "success");
         document.getElementById('match-live').classList.add('hidden'); document.getElementById('league-table-container').classList.remove('hidden'); renderLeagueView();
+        
         if (leagueState.currentRound <= 31) document.getElementById('quick-play-btn').classList.remove('hidden');
+
     } catch (e) { showToast("Lỗi lưu kết quả: " + e.message); } finally { hideLoading(); }
 };
 
@@ -618,8 +668,10 @@ const finishFriendlyMatch = async (totalEarnings) => {
     try {
         myBudget += totalEarnings; updateHeaderDisplay(); leagueState.friendlyMatchesPlayed = (leagueState.friendlyMatchesPlayed || 0) + 1;
         const batch = writeBatch(db); batch.set(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { budget: myBudget, facilities: myFacilities }, { merge: true }); batch.set(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState); batch.set(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'tactics'), { formation: currentFormation, startingXI: startingXI }); await batch.commit();
-        document.getElementById('match-live').classList.add('hidden'); document.getElementById('season-end-panel').classList.remove('hidden'); document.getElementById('league-table-container').classList.remove('hidden'); showToast("Hoàn tất trận giao hữu!", "success"); renderLeagueView(); 
+        document.getElementById('match-live').classList.add('hidden'); document.getElementById('season-end-panel').classList.remove('hidden'); document.getElementById('league-table-container').classList.remove('hidden'); showToast("Hoàn tất trận giao hữu! Thể lực cầu thủ đã thay đổi.", "success"); renderLeagueView(); 
+        
         if (leagueState.currentRound <= 31) document.getElementById('quick-play-btn').classList.remove('hidden');
+
     } catch (e) { showToast("Lỗi: " + e.message); } finally { hideLoading(); }
 };
 
@@ -635,6 +687,7 @@ document.getElementById('start-new-season-btn').addEventListener('click', async 
         const batch = writeBatch(db); globalPlayersList.forEach(p => { p.stamina = 100; p.injury = 0; batch.update(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', p.id), { stamina: 100, injury: 0 }); }); await batch.commit();
         await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState);
         renderSquadList(); renderPitch(); renderLeagueView(); showToast("🎉 Mùa giải mới! Các cầu thủ đã hồi phục 100% thể lực.", "success");
+        
         document.getElementById('quick-play-btn').classList.remove('hidden');
     } catch(e) { showToast("Lỗi: " + e.message); } finally { hideLoading(); }
 });
