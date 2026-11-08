@@ -26,9 +26,10 @@ let globalPlayersMap = {};
 let currentFormation = '4-4-2'; 
 let startingXI = new Array(11).fill(null);
 let teamPower = { OVR: 0 };
-let leagueState = { currentRound: 1, standings: [], schedule: [], friendlyMatchesPlayed: 0, promotedBots: [], pendingBuys: [], pendingSells: [] };
+let leagueState = { currentRound: 1, standings: [], schedule: [], friendlyMatchesPlayed: 0, promotedBots: [], pendingBuys: [], pendingSells: [], rankHistory: [] };
 
 let currentMarketList = [];
+let pendingOffers = [];
 let currentlyViewingPlayerId = null;
 let currentSlotToFill = null;
 let currentItemToApply = null;
@@ -58,8 +59,6 @@ window.showToast = (message, type = 'error') => {
 
 const updateHeaderDisplay = () => {
     document.getElementById('budget-display').textContent = `€${myBudget.toLocaleString()}`;
-    
-    // Inject Fame UI dynamically if not exists
     let fameDiv = document.getElementById('fame-display-container');
     if (!fameDiv) {
         fameDiv = document.createElement('div');
@@ -101,8 +100,112 @@ const switchView = (v) => {
     if(v === 'league') renderLeagueView();
     if(v === 'transfer') renderTransferMarket();
     if(v === 'store') renderStore();
+    if(v === 'overview') renderOverview();
 };
 ['overview', 'squad', 'tactics', 'league', 'transfer', 'store'].forEach(v => document.getElementById(`nav-${v}`).addEventListener('click', () => switchView(v)));
+
+// ================= MODULE 2.5: DASHBOARD OVERVIEW RENDERER =================
+const renderOverview = () => {
+    const overviewDiv = document.getElementById('view-overview');
+    if (!overviewDiv) return;
+
+    let userTeam = leagueState.standings.find(t => t.isUser);
+    let currentRank = userTeam ? leagueState.standings.findIndex(t => t.isUser) + 1 : '-';
+    let nextOpponent = null;
+    
+    if (leagueState.currentRound <= 31 && leagueState.schedule) {
+        const oppId = leagueState.schedule[leagueState.currentRound - 1];
+        nextOpponent = leagueState.standings.find(t => t.id === oppId);
+    }
+
+    const posCount = { GK: 0, DEF: 0, MID: 0, FWD: 0 };
+    globalPlayersList.forEach(p => { if (posCount[p.pos] !== undefined) posCount[p.pos]++; });
+
+    // Sinh SVG Biểu đồ leo hạng (Line Chart)
+    let chartHtml = `<div class="h-32 flex items-center justify-center text-slate-500 italic">Chưa có dữ liệu thi đấu mùa này. Hãy đá vòng đầu tiên!</div>`;
+    
+    if (leagueState.rankHistory && leagueState.rankHistory.length > 0) {
+        let pointsStr = "";
+        let labelsStr = "";
+        const w = 800; // SVG viewBox width
+        const h = 200; // SVG viewBox height
+        const xStep = w / 30; // 30 khoảng trống cho 31 vòng đấu
+        
+        leagueState.rankHistory.forEach((rank, idx) => {
+            const x = idx * xStep;
+            // Rank 1 -> y = 20 (Top), Rank 32 -> y = 180 (Bottom)
+            const y = 20 + ((rank - 1) / 31) * 160; 
+            pointsStr += `${x},${y} `;
+            labelsStr += `<circle cx="${x}" cy="${y}" r="6" fill="#22c55e" stroke="#0f172a" stroke-width="2" class="hover:fill-yellow-400 hover:r-8 transition-all cursor-pointer"><title>Vòng ${idx+1}: Hạng ${rank}</title></circle>`;
+        });
+
+        chartHtml = `
+            <div class="relative w-full h-full overflow-x-auto overflow-y-hidden scrollbar-hide py-2">
+                <svg viewBox="-20 0 ${w + 40} ${h}" class="min-w-[600px] w-full h-48 drop-shadow-xl">
+                    <text x="-15" y="25" fill="#64748b" font-size="12" font-weight="bold">Top 1</text>
+                    <text x="-15" y="105" fill="#334155" font-size="12">Top 16</text>
+                    <text x="-15" y="185" fill="#64748b" font-size="12" font-weight="bold">Top 32</text>
+                    
+                    <!-- Lưới (Grid lines) -->
+                    <line x1="25" y1="20" x2="${w}" y2="20" stroke="#334155" stroke-dasharray="4" />
+                    <line x1="25" y1="100" x2="${w}" y2="100" stroke="#1e293b" stroke-dasharray="4" />
+                    <line x1="25" y1="180" x2="${w}" y2="180" stroke="#334155" stroke-dasharray="4" />
+                    
+                    <!-- Đường đồ thị -->
+                    <polyline points="${pointsStr}" fill="none" stroke="#22c55e" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+                    ${labelsStr}
+                </svg>
+            </div>
+        `;
+    }
+
+    overviewDiv.innerHTML = `
+        <!-- Header Tổng quan -->
+        <div class="bg-gradient-to-br from-slate-800/80 to-slate-900/80 border border-green-900/30 p-8 rounded-2xl shadow-xl">
+            <h3 class="text-3xl font-bold text-white mb-2">Chào mừng HLV của <span class="text-green-400">${myClubName}</span></h3>
+            <p class="text-slate-300 text-lg mb-4">
+                Mùa giải đang diễn ra ở <span class="font-bold text-yellow-400">Vòng ${leagueState.currentRound <= 31 ? leagueState.currentRound : 'Kết thúc'}</span>. 
+                ${nextOpponent ? `Đối thủ tiếp theo: <b>${nextOpponent.name}</b>` : 'Đang trong kỳ nghỉ Hậu mùa giải.'}
+            </p>
+            <button onclick="document.getElementById('nav-league').click()" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-6 rounded-lg shadow-lg transition-colors">Tới Sân Cỏ Ngay ⚽</button>
+        </div>
+
+        <!-- Hàng thẻ thông tin (3 cột) -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+            <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-5 shadow-lg flex flex-col justify-center">
+                <h4 class="text-slate-400 font-bold mb-4 border-b border-slate-700 pb-2">🏢 CÂU LẠC BỘ</h4>
+                <div class="flex justify-between items-center mb-2"><span class="text-slate-300">Ngân sách:</span><span class="text-2xl font-bold text-green-400">€${(myBudget/1000000).toFixed(2)}M</span></div>
+                <div class="flex justify-between items-center"><span class="text-slate-300">Danh tiếng (Fame):</span><span class="text-xl font-bold text-yellow-400">🌟 ${myFame}</span></div>
+            </div>
+
+            <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-5 shadow-lg">
+                <h4 class="text-slate-400 font-bold mb-4 border-b border-slate-700 pb-2">👕 ĐỘI HÌNH (${globalPlayersList.length}/25)</h4>
+                <div class="grid grid-cols-2 gap-2 text-sm">
+                    <div class="bg-red-900/30 border border-red-900/50 p-2 rounded text-center"><div class="font-bold text-red-400">${posCount.FWD}</div><div class="text-slate-400 text-[11px] uppercase">Tiền đạo</div></div>
+                    <div class="bg-green-900/30 border border-green-900/50 p-2 rounded text-center"><div class="font-bold text-green-400">${posCount.MID}</div><div class="text-slate-400 text-[11px] uppercase">Tiền vệ</div></div>
+                    <div class="bg-blue-900/30 border border-blue-900/50 p-2 rounded text-center"><div class="font-bold text-blue-400">${posCount.DEF}</div><div class="text-slate-400 text-[11px] uppercase">Hậu vệ</div></div>
+                    <div class="bg-yellow-900/30 border border-yellow-900/50 p-2 rounded text-center"><div class="font-bold text-yellow-400">${posCount.GK}</div><div class="text-slate-400 text-[11px] uppercase">Thủ môn</div></div>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-5 shadow-lg flex flex-col justify-center">
+                <h4 class="text-slate-400 font-bold mb-4 border-b border-slate-700 pb-2">📈 PHONG ĐỘ (Hạng ${currentRank})</h4>
+                <div class="flex justify-between text-center">
+                    <div><div class="text-2xl font-bold text-green-400">${userTeam ? userTeam.won : 0}</div><div class="text-slate-400 text-xs">Thắng</div></div>
+                    <div><div class="text-2xl font-bold text-slate-300">${userTeam ? userTeam.drawn : 0}</div><div class="text-slate-400 text-xs">Hòa</div></div>
+                    <div><div class="text-2xl font-bold text-red-400">${userTeam ? userTeam.lost : 0}</div><div class="text-slate-400 text-xs">Thua</div></div>
+                    <div><div class="text-2xl font-bold text-yellow-400">${userTeam ? userTeam.points : 0}</div><div class="text-slate-400 text-xs">Điểm</div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Biểu đồ Ranking -->
+        <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-6 shadow-lg mt-6">
+            <h4 class="text-slate-400 font-bold mb-4 border-b border-slate-700 pb-2">📊 BIỂU ĐỒ THỨ HẠNG MÙA GIẢI</h4>
+            ${chartHtml}
+        </div>
+    `;
+};
 
 // ================= MODULE 3: AUTHENTICATION =================
 let isLogin = true; 
@@ -148,7 +251,6 @@ const loadGameData = async (uid) => {
             myBudget = profileData.budget || 10000000;
             myFame = profileData.fame || 30; // Tải danh tiếng
             
-            document.getElementById('welcome-title').textContent = `HLV của ${myClubName}!`;
             updateHeaderDisplay();
             
             const pSnap = await getDocs(collection(db, 'artifacts', appId, 'users', uid, 'players'));
@@ -198,6 +300,7 @@ const loadGameData = async (uid) => {
                 if (!leagueState.promotedBots) leagueState.promotedBots = [];
                 if (!leagueState.pendingBuys) leagueState.pendingBuys = [];
                 if (!leagueState.pendingSells) leagueState.pendingSells = [];
+                if (!leagueState.rankHistory) leagueState.rankHistory = []; // Khởi tạo mảng xếp hạng
             } else {
                 await initLeagueData(uid, myClubName);
             }
@@ -253,7 +356,7 @@ const initLeagueData = async (uid, overrideName = null) => {
     let initialStandings = [...bots, { id: 'user', name: overrideName || myClubName, isUser: true, ovr: 0, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 }];
     let userSchedule = bots.map(b => b.id).sort(() => Math.random() - 0.5);
     
-    leagueState = { currentRound: 1, standings: initialStandings, schedule: userSchedule, friendlyMatchesPlayed: 0, promotedBots: [], pendingBuys: [], pendingSells: [] };
+    leagueState = { currentRound: 1, standings: initialStandings, schedule: userSchedule, friendlyMatchesPlayed: 0, promotedBots: [], pendingBuys: [], pendingSells: [], rankHistory: [] };
     await setDoc(doc(db, 'artifacts', appId, 'users', uid, 'league', 'state'), leagueState);
 };
 
@@ -415,7 +518,7 @@ document.getElementById('save-tactics-btn').addEventListener('click', async () =
     btn.textContent = oldText; btn.disabled = false;
 });
 
-// ================= MODULE 6: TRANSFER MARKET (NÂNG CẤP V2) =================
+// ================= MODULE 6: TRANSFER MARKET =================
 document.getElementById('tab-transfer-market').addEventListener('click', () => {
     document.getElementById('transfer-market-section').classList.remove('hidden');
     document.getElementById('transfer-offers-section').classList.add('hidden');
@@ -471,203 +574,117 @@ const renderTransferMarket = () => {
 };
 document.getElementById('refresh-market-btn').addEventListener('click', () => { generateMarketPlayers(); renderTransferMarket(); });
 
-// HÀM MỚI: Đặt mua (Tạm giữ tiền, chờ duyệt)
 window.makeBuyOffer = async (marketId) => {
     const p = currentMarketList.find(x => x.id === marketId); if(!p) return;
-    
-    if (p.ovr >= 85 && myFame < 60) {
-        window.showToast(`CLB của bạn chưa đủ Danh tiếng (Fame < 60). ${p.name} từ chối đàm phán!`, "error"); return;
-    }
-    if (globalPlayersList.length + (leagueState.pendingBuys?.length || 0) >= 25) { 
-        window.showToast("Đội hình và danh sách chờ đã đầy (Tối đa 25 người)!"); return; 
-    }
+    if (p.ovr >= 85 && myFame < 60) { window.showToast(`CLB của bạn chưa đủ Danh tiếng (Fame < 60). ${p.name} từ chối đàm phán!`, "error"); return; }
+    if (globalPlayersList.length + (leagueState.pendingBuys?.length || 0) >= 25) { window.showToast("Đội hình và danh sách chờ đã đầy (Tối đa 25 người)!"); return; }
 
     const offerStr = prompt(`Nhập mức giá bạn muốn đề nghị cho ${p.name} (Giá gốc: €${p.value.toLocaleString()}):\n- Trả càng cao, tỷ lệ nẫng tay trên càng giảm.\n- Thương vụ sẽ chốt sổ sau khi bạn ĐÁ XONG 1 VÒNG.`, p.value);
-    if (offerStr === null) return;
-    const bidAmount = parseInt(offerStr.replace(/,/g, ''));
-
+    if (offerStr === null) return; const bidAmount = parseInt(offerStr.replace(/,/g, ''));
     if (isNaN(bidAmount) || bidAmount <= 0) { window.showToast("Giá không hợp lệ!"); return; }
     if (myBudget < bidAmount) { window.showToast("Bạn không đủ ngân sách!"); return; }
 
     try {
         myBudget -= bidAmount; updateHeaderDisplay();
         await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { budget: myBudget }, { merge: true });
-
         if(!leagueState.pendingBuys) leagueState.pendingBuys = [];
         leagueState.pendingBuys.push({ marketId: p.id, playerInfo: p, bidAmount: bidAmount });
         await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState);
-
-        renderTransferMarket();
-        window.showToast(`Đã nộp đơn mua ${p.name} với giá €${bidAmount.toLocaleString()}. Đang tạm giữ tiền chờ duyệt sau 1 trận đấu!`, "success");
+        renderTransferMarket(); window.showToast(`Đã nộp đơn mua ${p.name} với giá €${bidAmount.toLocaleString()}. Đang tạm giữ tiền chờ duyệt sau 1 trận đấu!`, "success");
     } catch (e) { window.showToast("Lỗi khi nộp đơn mua!"); }
 };
 
-// HÀM MỚI: Đăng bán (Chờ duyệt)
 window.listPlayerForSale = async () => {
-    if(!currentlyViewingPlayerId) return;
-    const p = globalPlayersMap[currentlyViewingPlayerId];
-    if(p.isListed) return;
-
+    if(!currentlyViewingPlayerId) return; const p = globalPlayersMap[currentlyViewingPlayerId]; if(p.isListed) return;
     const askStr = prompt(`Nhập mức giá TỐI THIỂU bạn muốn bán cho ${p.name} (Giá gốc: €${(p.value).toLocaleString()}):\n- Hét giá quá cao Bot sẽ chê.\n- Bán rẻ sẽ dễ thanh khoản. Kèo chốt sau 1 vòng đấu.`, p.value);
-    if (askStr === null) return;
-    const askAmount = parseInt(askStr.replace(/,/g, ''));
+    if (askStr === null) return; const askAmount = parseInt(askStr.replace(/,/g, ''));
     if (isNaN(askAmount) || askAmount <= 0) { window.showToast("Giá không hợp lệ!"); return; }
 
     try {
-        await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', p.id), { isListed: true }, { merge: true });
-        p.isListed = true;
-
+        await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', p.id), { isListed: true }, { merge: true }); p.isListed = true;
         if(!leagueState.pendingSells) leagueState.pendingSells = [];
         leagueState.pendingSells.push({ playerId: p.id, playerName: p.name, askAmount: askAmount, baseValue: p.value });
         await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState);
-
-        window.openPlayerDetail(p.id); renderSquadList();
-        window.showToast(`Đã đưa ${p.name} lên chợ với giá €${askAmount.toLocaleString()}. Chờ đối tác phản hồi sau trận đấu!`, "success");
+        window.openPlayerDetail(p.id); renderSquadList(); window.showToast(`Đã đưa ${p.name} lên chợ với giá €${askAmount.toLocaleString()}. Chờ đối tác phản hồi sau trận đấu!`, "success");
     } catch(e) { window.showToast("Lỗi cập nhật trạng thái!"); }
 };
 
-// HÀM MỚI: Thanh lý hợp đồng ngay lập tức
 window.terminateContract = async () => {
-    if(!currentlyViewingPlayerId) return;
-    const p = globalPlayersMap[currentlyViewingPlayerId];
-    
-    // Tính phí 10% - 15% random
-    const penaltyRate = 0.10 + (Math.random() * 0.05);
-    const penaltyFee = Math.floor(p.value * penaltyRate);
-
-    if (myBudget < penaltyFee) {
-        window.showToast(`Bạn cần ít nhất €${penaltyFee.toLocaleString()} (Tiền đền bù hợp đồng) để đuổi cầu thủ này!`, "error"); return;
-    }
-
+    if(!currentlyViewingPlayerId) return; const p = globalPlayersMap[currentlyViewingPlayerId];
+    const penaltyRate = 0.10 + (Math.random() * 0.05); const penaltyFee = Math.floor(p.value * penaltyRate);
+    if (myBudget < penaltyFee) { window.showToast(`Bạn cần ít nhất €${penaltyFee.toLocaleString()} (Tiền đền bù hợp đồng) để đuổi cầu thủ này!`, "error"); return; }
     if(confirm(`CẢNH BÁO: Bạn có chắc muốn ĐUỔI THẲNG ${p.name}? \nCLB sẽ phải bồi thường ${Math.round(penaltyRate*100)}% giá trị thẻ, tương đương: -€${penaltyFee.toLocaleString()}`)) {
         try {
             document.getElementById('player-detail-modal').classList.add('hidden');
-            
             myBudget -= penaltyFee; updateHeaderDisplay();
             await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { budget: myBudget }, { merge: true });
             await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', p.id));
-            
             globalPlayersList = globalPlayersList.filter(x => x.id !== p.id); delete globalPlayersMap[p.id];
             startingXI = startingXI.map(id => id === p.id ? null : id);
             await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'tactics'), { formation: currentFormation, startingXI: startingXI });
-            
-            // Nếu cầu thủ đang rao bán, gỡ khỏi pendingSells
-            if (leagueState.pendingSells) {
-                leagueState.pendingSells = leagueState.pendingSells.filter(x => x.playerId !== p.id);
-                await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState);
-            }
-
-            renderSquadList(); renderPitch();
-            window.showToast(`Đã thanh lý hợp đồng thành công. CLB mất €${penaltyFee.toLocaleString()} tiền đền bù!`, "warning");
+            if (leagueState.pendingSells) { leagueState.pendingSells = leagueState.pendingSells.filter(x => x.playerId !== p.id); await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState); }
+            renderSquadList(); renderPitch(); window.showToast(`Đã thanh lý hợp đồng thành công. CLB mất €${penaltyFee.toLocaleString()} tiền đền bù!`, "warning");
         } catch(e) { window.showToast("Lỗi khi thanh lý!"); }
     }
 };
 
 const renderPendingTransfers = () => {
     const container = document.getElementById('offers-list-container'); container.innerHTML = '';
-    
     let totalPending = (leagueState.pendingBuys?.length || 0) + (leagueState.pendingSells?.length || 0);
-    if(totalPending === 0) {
-        container.innerHTML = '<div class="text-slate-400 text-center py-8 border border-dashed border-slate-700 rounded-xl">Chưa có giao dịch nào đang chờ. Hãy mua/bán cầu thủ và thi đấu thêm 1 vòng để xem kết quả.</div>';
-        return;
-    }
+    if(totalPending === 0) { container.innerHTML = '<div class="text-slate-400 text-center py-8 border border-dashed border-slate-700 rounded-xl">Chưa có giao dịch nào đang chờ. Hãy mua/bán cầu thủ và thi đấu thêm 1 vòng để xem kết quả.</div>'; return; }
 
     if (leagueState.pendingBuys && leagueState.pendingBuys.length > 0) {
         container.innerHTML += `<h4 class="text-white font-bold mb-3 border-b border-slate-700 pb-1 mt-4">🛒 Đơn Mua Chờ Duyệt</h4>`;
-        leagueState.pendingBuys.forEach(b => {
-            container.innerHTML += `
-                <div class="bg-slate-900 border border-slate-700 p-4 rounded-xl flex justify-between items-center shadow-lg mb-3 opacity-70">
-                    <div><div class="font-bold text-blue-400 mb-1">Đang đàm phán mua: <span class="text-white">${b.playerInfo.name}</span></div><div class="text-sm text-slate-400">Giá đề nghị: €${b.bidAmount.toLocaleString()}</div></div>
-                    <div class="text-right"><span class="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">Chờ kết thúc vòng đấu</span></div>
-                </div>`;
-        });
+        leagueState.pendingBuys.forEach(b => { container.innerHTML += `<div class="bg-slate-900 border border-slate-700 p-4 rounded-xl flex justify-between items-center shadow-lg mb-3 opacity-70"><div><div class="font-bold text-blue-400 mb-1">Đang đàm phán mua: <span class="text-white">${b.playerInfo.name}</span></div><div class="text-sm text-slate-400">Giá đề nghị: €${b.bidAmount.toLocaleString()}</div></div><div class="text-right"><span class="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">Chờ kết thúc vòng đấu</span></div></div>`; });
     }
-
     if (leagueState.pendingSells && leagueState.pendingSells.length > 0) {
         container.innerHTML += `<h4 class="text-white font-bold mb-3 border-b border-slate-700 pb-1 mt-4">💰 Đơn Bán Chờ Duyệt</h4>`;
-        leagueState.pendingSells.forEach(s => {
-            container.innerHTML += `
-                <div class="bg-slate-900 border border-slate-700 p-4 rounded-xl flex justify-between items-center shadow-lg mb-3 opacity-70">
-                    <div><div class="font-bold text-red-400 mb-1">Đang rao bán: <span class="text-white">${s.playerName}</span></div><div class="text-sm text-slate-400">Giá mong muốn: €${s.askAmount.toLocaleString()}</div></div>
-                    <div class="text-right"><span class="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">Chờ Bot trả giá</span></div>
-                </div>`;
-        });
+        leagueState.pendingSells.forEach(s => { container.innerHTML += `<div class="bg-slate-900 border border-slate-700 p-4 rounded-xl flex justify-between items-center shadow-lg mb-3 opacity-70"><div><div class="font-bold text-red-400 mb-1">Đang rao bán: <span class="text-white">${s.playerName}</span></div><div class="text-sm text-slate-400">Giá mong muốn: €${s.askAmount.toLocaleString()}</div></div><div class="text-right"><span class="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded">Chờ Bot trả giá</span></div></div>`; });
     }
 };
 
-// HÀM MỚI: Xử lý toàn bộ Thị trường Chuyển nhượng (Chạy ngầm khi kết thúc trận)
 const processTransferMarket = async (logContainer) => {
-    let resolvedLogs = [];
-    let budgetRefunded = 0;
-    let budgetEarned = 0;
-
-    // Xử lý đơn MUA
+    let resolvedLogs = []; let budgetRefunded = 0; let budgetEarned = 0;
+    
     if (leagueState.pendingBuys && leagueState.pendingBuys.length > 0) {
         for (let b of leagueState.pendingBuys) {
-            let p = b.playerInfo;
-            // Tỷ lệ thành công: Trả đúng giá gốc = 50% cơ hội. Fame 50 = 50% cơ hội.
-            let bidRatio = b.bidAmount / p.value; // Ví dụ trả 100% -> 1. Trả gấp đôi -> 2.
-            let fameFactor = myFame / 100;
-            let successChance = (bidRatio * 0.5) + (fameFactor * 0.5); 
-            
-            // Yếu tố hên xui bị Đại gia nẫng tay
-            let hijackRng = Math.random();
-
+            let p = b.playerInfo; let bidRatio = b.bidAmount / p.value; let fameFactor = myFame / 100;
+            let successChance = (bidRatio * 0.5) + (fameFactor * 0.5); let hijackRng = Math.random();
             if (hijackRng <= successChance) {
-                // Thành công
                 const newPlayerRef = doc(collection(db, 'artifacts', appId, 'users', currentUserId, 'players'));
-                p.isListed = false; p.itemsUsed = 0; p.stamina = 100;
-                await setDoc(newPlayerRef, p);
+                p.isListed = false; p.itemsUsed = 0; p.stamina = 100; await setDoc(newPlayerRef, p);
                 p.id = newPlayerRef.id; globalPlayersList.push(p); globalPlayersMap[p.id] = p;
-                
                 resolvedLogs.push(`<div class="text-blue-400 mb-1">✅ <b>THÀNH CÔNG:</b> Chiêu mộ ${p.name} với giá €${b.bidAmount.toLocaleString()}.</div>`);
             } else {
-                // Bị nẫng tay, hoàn tiền
-                let randomClub = RICH_CLUBS[Math.floor(Math.random()*RICH_CLUBS.length)];
-                budgetRefunded += b.bidAmount;
+                let randomClub = RICH_CLUBS[Math.floor(Math.random()*RICH_CLUBS.length)]; budgetRefunded += b.bidAmount;
                 resolvedLogs.push(`<div class="text-red-400 mb-1">❌ <b>THẤT BẠI:</b> Thương vụ ${p.name} đổ vỡ! Bị CLB <b>${randomClub}</b> phổng tay trên vào phút chót! Đã hoàn lại €${b.bidAmount.toLocaleString()}.</div>`);
             }
-            // Xóa cầu thủ khỏi chợ Market ngẫu nhiên
             currentMarketList = currentMarketList.filter(x => x.id !== b.marketId);
         }
         leagueState.pendingBuys = [];
     }
 
-    // Xử lý đơn BÁN
     if (leagueState.pendingSells && leagueState.pendingSells.length > 0) {
         let remainingSells = [];
         for (let s of leagueState.pendingSells) {
-            // Bot đưa ra mức giá ngẫu nhiên từ 70% đến 120% giá trị gốc của cầu thủ
             let botOffer = Math.floor(s.baseValue * (0.7 + Math.random() * 0.5));
-            
             if (botOffer >= s.askAmount) {
-                // Bán thành công
-                budgetEarned += botOffer;
-                let randomBot = BOT_CITY_NAMES[Math.floor(Math.random()*BOT_CITY_NAMES.length)] + " FC";
+                budgetEarned += botOffer; let randomBot = BOT_CITY_NAMES[Math.floor(Math.random()*BOT_CITY_NAMES.length)] + " FC";
                 await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', s.playerId));
                 globalPlayersList = globalPlayersList.filter(x => x.id !== s.playerId); delete globalPlayersMap[s.playerId];
                 startingXI = startingXI.map(id => id === s.playerId ? null : id);
-                
                 resolvedLogs.push(`<div class="text-green-400 mb-1">🤝 <b>CHỐT ĐƠN:</b> Đã bán ${s.playerName} cho ${randomBot} với mức giá <b>€${botOffer.toLocaleString()}</b> (Vượt kỳ vọng).</div>`);
             } else {
-                // Không ai mua
-                remainingSells.push(s); // Tiếp tục rao bán ở vòng sau
-                resolvedLogs.push(`<div class="text-slate-400 mb-1">⏳ <b>Ế ẨM:</b> ${s.playerName} chưa tìm được đối tác mua với giá €${s.askAmount.toLocaleString()}. CLB khác chỉ trả tối đa €${botOffer.toLocaleString()}. Đang tiếp tục rao.</div>`);
+                remainingSells.push(s); 
+                resolvedLogs.push(`<div class="text-slate-400 mb-1">⏳ <b>Ế ẨM:</b> ${s.playerName} chưa tìm được đối tác mua với giá €${s.askAmount.toLocaleString()}. Đang tiếp tục rao.</div>`);
             }
         }
         leagueState.pendingSells = remainingSells;
     }
 
     if (resolvedLogs.length > 0) {
-        logContainer.innerHTML += `
-            <div class="mt-4 mb-2 bg-slate-900 border border-blue-500/50 p-4 rounded-xl text-sm animate-log shadow-lg">
-                <div class="font-bold text-blue-400 mb-3 border-b border-slate-700 pb-2 text-center">📠 FAX CHUYỂN NHƯỢNG VÒNG ĐẤU</div>
-                ${resolvedLogs.join('')}
-            </div>
-        `;
-        myBudget = myBudget + budgetRefunded + budgetEarned;
-        updateHeaderDisplay();
-        renderSquadList(); renderPitch();
+        logContainer.innerHTML += `<div class="mt-4 mb-2 bg-slate-900 border border-blue-500/50 p-4 rounded-xl text-sm animate-log shadow-lg"><div class="font-bold text-blue-400 mb-3 border-b border-slate-700 pb-2 text-center">📠 FAX CHUYỂN NHƯỢNG VÒNG ĐẤU</div>${resolvedLogs.join('')}</div>`;
+        myBudget = myBudget + budgetRefunded + budgetEarned; updateHeaderDisplay(); renderSquadList(); renderPitch();
     }
 };
 
@@ -803,9 +820,7 @@ const startMatchEngine = (opponent, isFriendly) => {
             const finishBtn = document.getElementById('finish-match-btn'); finishBtn.classList.remove('hidden');
             finishBtn.onclick = async () => {
                 finishBtn.textContent = "Đang xử lý kết quả và TTCN ngầm..."; finishBtn.disabled = true;
-                await processTransferMarket(logContainer); // Chạy ngầm TTCN
-                
-                // Show nút lưu cuối cùng sau khi TTCN chạy xong để user đọc Log
+                await processTransferMarket(logContainer); 
                 finishBtn.textContent = "Lưu thành tích vòng đấu"; finishBtn.disabled = false;
                 finishBtn.onclick = () => { if(isFriendly) finishFriendlyMatch(totalEarnings); else finishLeagueRound(homeScore, awayScore, totalEarnings); };
             };
@@ -846,14 +861,18 @@ const finishLeagueRound = async (userScore, botScore, totalEarnings) => {
             if(t1Score > t2Score) { t1.won++; t2.lost++; t1.points += 3; } else if(t1Score < t2Score) { t2.won++; t1.lost++; t2.points += 3; } else { t1.drawn++; t2.drawn++; t1.points += 1; t2.points += 1; }
         }
 
+        sortStandings();
+        if (!leagueState.rankHistory) leagueState.rankHistory = [];
+        let finalRankInRound = leagueState.standings.findIndex(t => t.isUser) + 1;
+        leagueState.rankHistory.push(finalRankInRound);
+
         leagueState.currentRound++; let endSeasonMessage = "";
         if (leagueState.currentRound === 32) {
-            sortStandings(); let finalRank = leagueState.standings.findIndex(t => t.isUser) + 1; let seasonPrize = getPrizeMoney(finalRank);
+            let finalRank = leagueState.standings.findIndex(t => t.isUser) + 1; let seasonPrize = getPrizeMoney(finalRank);
             
-            // Xử lý cộng/trừ FAME cuối mùa
             let fameDiff = 0;
             if(finalRank === 1) fameDiff = 20; else if(finalRank === 11 || finalRank === 12) fameDiff = 10; else if(finalRank === 21 || finalRank === 22) fameDiff = 5;
-            else if(finalRank >= 30) fameDiff = -15; else fameDiff = 2; // Nhích nhẹ 2 điểm nếu bám trụ giải
+            else if(finalRank >= 30) fameDiff = -15; else fameDiff = 2; 
             
             myFame = Math.max(0, Math.min(100, myFame + fameDiff));
 
@@ -905,6 +924,8 @@ document.getElementById('start-new-season-btn').addEventListener('click', async 
             });
         }
         leagueState.promotedBots = []; leagueState.currentRound = 1; leagueState.friendlyMatchesPlayed = 0; 
+        leagueState.rankHistory = []; // Reset lịch sử leo rank
+        
         leagueState.standings.forEach(t => { t.played = 0; t.won = 0; t.drawn = 0; t.lost = 0; t.gf = 0; t.ga = 0; t.points = 0; });
         leagueState.schedule = leagueState.standings.filter(t => !t.isUser).map(b => b.id).sort(() => Math.random() - 0.5);
         
@@ -931,7 +952,7 @@ window.buyItem = async (itemId) => {
     const item = STORE_ITEMS.find(x => x.id === itemId); if (!item) return;
     if (myBudget < item.price) { window.showToast("Bạn không đủ tiền để mua vật phẩm này!", "error"); return; }
     if (item.type === 'gacha') {
-        if(globalPlayersList.length >= 25) { window.showToast("Đội hình đã đầy (Tối đa 25 người)!"); return; }
+        if(globalPlayersList.length + (leagueState.pendingBuys?.length || 0) >= 25) { window.showToast("Đội hình đã đầy (Tối đa 25 người)!"); return; }
         if (confirm(`Xác nhận chi €${item.price.toLocaleString()} để mở gói cầu thủ ngẫu nhiên?`)) { await rollGacha(item.price); }
     } else {
         currentItemToApply = item; document.getElementById('apply-item-name').textContent = item.name;
