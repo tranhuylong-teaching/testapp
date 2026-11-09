@@ -9,6 +9,7 @@
     <script>
         tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'] } } } }
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body { background: radial-gradient(circle at center, #14532d 0%, #0f172a 100%); background-attachment: fixed; touch-action: manipulation; }
         ::-webkit-scrollbar { width: 4px; height: 4px; } ::-webkit-scrollbar-track { background: transparent; } ::-webkit-scrollbar-thumb { background: #22c55e; border-radius: 4px; }
@@ -66,21 +67,63 @@
 
             <div class="p-4 md:p-6 lg:p-8">
                 
-                <!-- ================= 1. HUB: CÂU LẠC BỘ ================= -->
+                <!-- ================= 1. HUB: CÂU LẠC BỘ (DASHBOARD) ================= -->
                 <div id="view-club" class="space-y-6">
-                    <h2 class="text-2xl font-bold text-white mb-4">Quản lý Câu lạc bộ</h2>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div onclick="window.openSubView('facilities')" class="card-hover cursor-pointer bg-gradient-to-br from-blue-900/60 to-slate-800 border border-blue-500/30 p-6 rounded-2xl shadow-lg transition hover:border-blue-400">
-                            <div class="text-4xl mb-3">🏗️</div><h3 class="text-xl font-bold text-white mb-1">Cơ sở hạ tầng</h3>
-                            <p class="text-sm text-slate-400">Y tế, Huấn luyện & Tuyển trạch</p>
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-2xl font-bold text-white">Tổng quan Câu lạc bộ</h2>
+                    </div>
+                
+                    <!-- HÀNG 1: THỐNG KÊ NHANH -->
+                    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-slate-800 border border-slate-700 p-4 rounded-xl shadow-lg flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-green-900/50 flex items-center justify-center text-2xl border border-green-500">💰</div>
+                            <div><p class="text-slate-400 text-xs font-bold uppercase">Ngân sách</p><p id="dash-budget" class="text-green-400 font-bold text-lg md:text-xl">€0M</p></div>
                         </div>
-                        <div onclick="window.openSubView('stadium')" class="card-hover cursor-pointer bg-gradient-to-br from-orange-900/60 to-slate-800 border border-orange-500/30 p-6 rounded-2xl shadow-lg transition hover:border-orange-400">
-                            <div class="text-4xl mb-3">🏟️</div><h3 class="text-xl font-bold text-white mb-1">Sân vận động</h3>
-                            <p class="text-sm text-slate-400">Nâng cấp sân, tăng vé phạt góc</p>
+                        <div class="bg-slate-800 border border-slate-700 p-4 rounded-xl shadow-lg flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-yellow-900/50 flex items-center justify-center text-2xl border border-yellow-500">🌟</div>
+                            <div><p class="text-slate-400 text-xs font-bold uppercase">Danh tiếng (Fame)</p><p id="dash-fame" class="text-yellow-400 font-bold text-lg md:text-xl">0</p></div>
                         </div>
-                        <div onclick="window.openSubView('trophy')" class="card-hover cursor-pointer bg-gradient-to-br from-yellow-900/60 to-slate-800 border border-yellow-500/30 p-6 rounded-2xl shadow-lg transition hover:border-yellow-400">
-                            <div class="text-4xl mb-3">🏆</div><h3 class="text-xl font-bold text-white mb-1">Phòng truyền thống</h3>
-                            <p class="text-sm text-slate-400">Lịch sử & Ngôi đền huyền thoại</p>
+                        <div class="bg-slate-800 border border-slate-700 p-4 rounded-xl shadow-lg flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-blue-900/50 flex items-center justify-center text-2xl border border-blue-500">📊</div>
+                            <div><p class="text-slate-400 text-xs font-bold uppercase">Thành tích (T-H-B)</p><p id="dash-record" class="text-blue-400 font-bold text-lg md:text-xl">0 - 0 - 0</p></div>
+                        </div>
+                        <div class="bg-slate-800 border border-slate-700 p-4 rounded-xl shadow-lg flex items-center gap-4">
+                            <div class="w-12 h-12 rounded-full bg-purple-900/50 flex items-center justify-center text-2xl border border-purple-500">🏆</div>
+                            <div><p class="text-slate-400 text-xs font-bold uppercase">Điểm số</p><p id="dash-points" class="text-purple-400 font-bold text-lg md:text-xl">0</p></div>
+                        </div>
+                    </div>
+                
+                    <!-- HÀNG 2: BIỂU ĐỒ & NHÀ TÀI TRỢ -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                        <!-- Biểu đồ thứ hạng mùa giải -->
+                        <div class="lg:col-span-2 bg-slate-800 border border-slate-700 p-4 md:p-5 rounded-xl shadow-lg">
+                            <h3 class="font-bold text-white mb-4 flex items-center gap-2">📈 Biểu đồ thứ hạng</h3>
+                            <div class="h-48 md:h-64 w-full relative"><canvas id="rankChart"></canvas></div>
+                        </div>
+                        
+                        <!-- Danh sách sự kiện & Tài trợ -->
+                        <div class="bg-slate-800 border border-slate-700 p-4 md:p-5 rounded-xl shadow-lg flex flex-col h-full max-h-[300px] lg:max-h-full">
+                            <h3 class="font-bold text-white mb-4 flex items-center gap-2">🤝 Dòng tiền & Tài trợ</h3>
+                            <div id="sponsor-events-list" class="flex-1 overflow-y-auto space-y-3 hide-scrollbar pr-1">
+                                <!-- Render bằng JS -->
+                            </div>
+                        </div>
+                    </div>
+                
+                    <!-- HÀNG 3: NÚT ĐIỀU HƯỚNG CŨ -->
+                    <h3 class="text-lg font-bold text-white mt-6 mb-2 border-b border-slate-700 pb-2">Khu tổ hợp Câu lạc bộ</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div onclick="window.openSubView('facilities')" class="card-hover cursor-pointer bg-gradient-to-br from-blue-900/60 to-slate-800 border border-blue-500/30 p-5 md:p-6 rounded-2xl shadow-lg transition hover:border-blue-400">
+                            <div class="text-3xl md:text-4xl mb-2 md:mb-3">🏗️</div><h3 class="text-base md:text-xl font-bold text-white mb-1">Cơ sở hạ tầng</h3>
+                            <p class="text-xs md:text-sm text-slate-400">Y tế, Huấn luyện & Tuyển trạch</p>
+                        </div>
+                        <div onclick="window.openSubView('stadium')" class="card-hover cursor-pointer bg-gradient-to-br from-orange-900/60 to-slate-800 border border-orange-500/30 p-5 md:p-6 rounded-2xl shadow-lg transition hover:border-orange-400">
+                            <div class="text-3xl md:text-4xl mb-2 md:mb-3">🏟️</div><h3 class="text-base md:text-xl font-bold text-white mb-1">Sân vận động</h3>
+                            <p class="text-xs md:text-sm text-slate-400">Nâng cấp sân, tăng vé phạt góc</p>
+                        </div>
+                        <div onclick="window.openSubView('trophy')" class="card-hover cursor-pointer bg-gradient-to-br from-yellow-900/60 to-slate-800 border border-yellow-500/30 p-5 md:p-6 rounded-2xl shadow-lg transition hover:border-yellow-400">
+                            <div class="text-3xl md:text-4xl mb-2 md:mb-3">🏆</div><h3 class="text-base md:text-xl font-bold text-white mb-1">Phòng truyền thống</h3>
+                            <p class="text-xs md:text-sm text-slate-400">Lịch sử & Ngôi đền huyền thoại</p>
                         </div>
                     </div>
                 </div>
