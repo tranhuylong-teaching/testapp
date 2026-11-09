@@ -59,8 +59,14 @@ function switchView(v) {
 window.openSubView = function(subViewId) {
     TABS.forEach(id => { const el = document.getElementById(`view-${id}`); if(el) el.classList.add('hidden'); });
     const subEl = document.getElementById(`subview-${subViewId}`); if(subEl) subEl.classList.remove('hidden'); activeSubView = subViewId;
-    if(subViewId === 'facilities') window.renderFacilities(); if(subViewId === 'squad-list') renderSquadList(); if(subViewId === 'tactics') renderPitch();
-    if(subViewId === 'market' && document.getElementById('tab-transfer-market')) document.getElementById('tab-transfer-market').click();
+    if(subViewId === 'facilities') window.renderFacilities(); 
+    if(subViewId === 'squad-list') renderSquadList(); 
+    if(subViewId === 'tactics') renderPitch();
+    if(subViewId === 'market') {
+        const tabTransfer = document.getElementById('tab-transfer-market');
+        if(tabTransfer) tabTransfer.click(); 
+        renderTransferMarket(); // Nạp dữ liệu chợ ngay khi mở Sub-view
+    }
 };
 
 window.closeSubView = function(returnToParent = true) {
@@ -189,8 +195,18 @@ function renderSquadList() {
     const tbody = document.getElementById('squad-list-body'); if(!tbody) return; tbody.innerHTML = '';
     [...globalPlayersList].sort((a, b) => (POS_ORDER[a.pos] - POS_ORDER[b.pos] || b.ovr - a.ovr)).forEach(p => {
         let statusHtml = p.isListed ? '<span class="text-[10px] md:text-xs bg-red-900 text-red-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">Chờ bán</span>' : (myFacilities.medicalSlots.includes(p.id) ? '<span class="text-[10px] md:text-xs bg-yellow-900 text-yellow-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">🏥 Y tế</span>' : (myFacilities.trainingSlots.includes(p.id) ? '<span class="text-[10px] md:text-xs bg-blue-900 text-blue-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">🏋️ Tập</span>' : (startingXI.includes(p.id) ? '<span class="text-[10px] md:text-xs bg-green-900 text-green-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">⚽ Sân</span>' : '<span class="text-[10px] md:text-xs bg-slate-700 text-slate-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">🪑 Dự bị</span>')));
-        const stColor = p.injury > 0 ? 'text-red-500 font-bold' : (p.stamina >= 80 ? 'text-green-400' : (p.stamina >= 50 ? 'text-yellow-400' : 'text-red-400')); const stBg = p.stamina >= 80 ? 'bg-green-400' : (p.stamina >= 50 ? 'bg-yellow-400' : 'bg-red-500'); const rarity = getRarityClass(p.ovr);
-        tbody.innerHTML += `<tr class="hover:bg-slate-700/50 transition-colors cursor-pointer" onclick="window.openPlayerDetail('${p.id}')"><td class="p-3 text-center whitespace-nowrap"><span class="${POS_COLORS[p.pos]} text-white text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-1 rounded w-10 md:w-12 inline-block text-center">${p.pos}</span></td><td class="p-3 font-medium text-white w-full"><div class="mb-1 whitespace-nowrap max-w-[120px] md:max-w-[200px] truncate">${p.name}</div><div class="flex items-center gap-1 md:gap-2 text-[9px] md:text-[10px] ${stColor}"><span>${p.injury>0?'🚑 Chấn thương':`⚡ ${p.stamina}%`}</span>${p.injury > 0 ? '' : `<div class="w-12 md:w-16 bg-slate-700 h-1 md:h-1.5 rounded-full overflow-hidden hidden sm:block"><div class="${stBg} h-full" style="width: ${p.stamina}%"></div></div>`}</div></td><td class="p-3 text-center font-bold whitespace-nowrap ${rarity.text}">${p.ovr}</td><td class="p-3 text-center whitespace-nowrap">${statusHtml}</td><td class="p-3 text-right text-yellow-400 whitespace-nowrap">€${(p.value || p.ovr*100000).toLocaleString()}</td></tr>`;
+        const stColor = p.injury > 0 ? 'text-red-500 font-bold' : (p.stamina >= 80 ? 'text-green-400' : (p.stamina >= 50 ? 'text-yellow-400' : 'text-red-400')); 
+        const stBg = p.stamina >= 80 ? 'bg-green-400' : (p.stamina >= 50 ? 'bg-yellow-400' : 'bg-red-500'); 
+        const rarity = getRarityClass(p.ovr);
+        
+        tbody.innerHTML += `<tr class="hover:bg-slate-700/50 transition-colors cursor-pointer" onclick="window.openPlayerDetail('${p.id}')">
+            <td class="p-3 text-center whitespace-nowrap"><span class="${POS_COLORS[p.pos]} text-white text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-1 rounded w-10 md:w-12 inline-block text-center">${p.pos}</span></td>
+            <td class="p-3 font-medium text-white w-full"><div class="whitespace-nowrap max-w-[120px] md:max-w-[200px] truncate">${p.name}</div></td>
+            <td class="p-3 text-center whitespace-nowrap"><div class="flex flex-col items-center gap-1 text-[9px] md:text-[10px] ${stColor}"><span>${p.injury>0?'🚑 Chấn thương':`⚡ ${p.stamina}%`}</span>${p.injury > 0 ? '' : `<div class="w-12 bg-slate-700 h-1 rounded-full overflow-hidden hidden sm:block"><div class="${stBg} h-full" style="width: ${p.stamina}%"></div></div>`}</div></td>
+            <td class="p-3 text-center font-bold whitespace-nowrap ${rarity.text}">${p.ovr}</td>
+            <td class="p-3 text-center whitespace-nowrap">${statusHtml}</td>
+            <td class="p-3 text-right text-yellow-400 whitespace-nowrap">€${(p.value || p.ovr*100000).toLocaleString()}</td>
+        </tr>`;
     });
 }
 
@@ -272,7 +288,13 @@ document.getElementById('save-tactics-btn')?.addEventListener('click', async () 
 });
 
 // ================= THỊ TRƯỜNG & VẬT PHẨM =================
-document.getElementById('tab-transfer-market')?.addEventListener('click', () => { document.getElementById('transfer-market-section').classList.remove('hidden'); document.getElementById('store-section').classList.add('hidden'); document.getElementById('tab-transfer-market').className = "px-3 py-1.5 font-bold text-green-400 border-b-2 border-green-400 whitespace-nowrap"; document.getElementById('tab-store').className = "px-3 py-1.5 font-medium text-slate-400 hover:text-white transition whitespace-nowrap"; });
+document.getElementById('tab-transfer-market')?.addEventListener('click', function() { 
+    document.getElementById('transfer-market-section').classList.remove('hidden'); 
+    document.getElementById('store-section').classList.add('hidden'); 
+    document.getElementById('tab-transfer-market').className = "px-3 py-1.5 font-bold text-green-400 border-b-2 border-green-400 whitespace-nowrap"; 
+    document.getElementById('tab-store').className = "px-3 py-1.5 font-medium text-slate-400 hover:text-white transition whitespace-nowrap"; 
+    renderTransferMarket(); // Fix lỗi trống data: Gọi hàm render khi bấm tab
+});
 document.getElementById('tab-store')?.addEventListener('click', () => { document.getElementById('transfer-market-section').classList.add('hidden'); document.getElementById('store-section').classList.remove('hidden'); document.getElementById('tab-transfer-market').className = "px-3 py-1.5 font-medium text-slate-400 hover:text-white transition whitespace-nowrap"; document.getElementById('tab-store').className = "px-3 py-1.5 font-bold text-green-400 border-b-2 border-green-400 whitespace-nowrap"; window.renderStore(); });
 
 function generateMarketPlayers() {
