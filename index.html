@@ -68,11 +68,27 @@
                 <div id="view-overview" class="space-y-6"></div>
                 <div id="view-squad" class="hidden space-y-6">
                     <div class="bg-slate-800/80 rounded-2xl border border-slate-700/50 overflow-hidden shadow-xl">
-                        <div class="p-4 md:p-6 border-b border-slate-700/50 flex justify-between items-center bg-slate-800"><h3 class="text-lg md:text-xl font-bold text-white">Danh sách Cầu thủ</h3><span class="text-xs md:text-sm text-slate-400 italic hidden sm:block">Nhấn vào cầu thủ để xem chi tiết</span></div>
-                        <div class="overflow-x-auto"><table class="w-full text-left border-collapse min-w-[500px]"><thead><tr class="bg-slate-900/50 text-slate-400 text-[10px] md:text-xs uppercase"><th class="p-3 md:p-4 pl-4 md:pl-6 w-16 md:w-20">Vị trí</th><th class="p-3 md:p-4">Cầu thủ</th><th class="p-3 md:p-4 text-center">OVR</th><th class="p-3 md:p-4 text-center">Trạng thái</th><th class="p-3 md:p-4 text-right pr-4 md:pr-6">Giá trị</th></tr></thead><tbody id="squad-list-body" class="divide-y divide-slate-700/50 text-xs md:text-sm"></tbody></table></div>
+                        <div class="p-4 md:p-6 border-b border-slate-700/50 flex justify-between items-center bg-slate-800">
+                            <h3 class="text-lg md:text-xl font-bold text-white">Danh sách Cầu thủ</h3>
+                            <span class="text-xs md:text-sm text-slate-400 italic hidden sm:block">Nhấn vào cầu thủ để xem chi tiết</span>
+                        </div>
+                        <div class="overflow-x-auto hide-scrollbar">
+                            <table class="w-full text-left border-collapse min-w-max">
+                                <thead>
+                                    <tr class="bg-slate-900/50 text-slate-400 text-[10px] md:text-xs uppercase">
+                                        <th class="p-3 text-center whitespace-nowrap">Vị trí</th>
+                                        <th class="p-3 w-full">Cầu thủ</th>
+                                        <th class="p-3 text-center whitespace-nowrap">OVR</th>
+                                        <th class="p-3 text-center whitespace-nowrap">Trạng thái</th>
+                                        <th class="p-3 text-right whitespace-nowrap">Giá trị</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="squad-list-body" class="divide-y divide-slate-700/50 text-xs md:text-sm"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
-
+                
                 <div id="view-tactics" class="hidden space-y-6">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-800 p-4 rounded-xl border border-slate-700">
                         <div><h3 class="text-lg md:text-xl font-bold text-white mb-1">Sơ đồ Chiến thuật</h3></div>
@@ -98,11 +114,24 @@
                 <div id="view-transfer" class="hidden space-y-6">
                     <div class="flex flex-wrap gap-2 md:gap-4 border-b border-slate-700 pb-2 text-sm md:text-base"><button id="tab-transfer-market" class="px-3 py-2 font-bold text-green-400 border-b-2 border-green-400 whitespace-nowrap">Thị trường Mua</button><button id="tab-transfer-offers" class="px-3 py-2 font-medium text-slate-400 hover:text-white transition whitespace-nowrap">Thương vụ chờ xử lý (0)</button></div>
                     <div id="transfer-market-section" class="bg-slate-800/80 rounded-2xl border border-slate-700/50 overflow-hidden shadow-xl">
-                        <div class="p-4 md:p-6 border-b border-slate-700/50 flex justify-between items-center bg-slate-800"><h3 class="text-base md:text-xl font-bold text-white">Cầu thủ Đang Rao Bán</h3>
-                            <!-- NÚT REFRESH MẤT PHÍ ĐƯỢC CẬP NHẬT Ở ĐÂY -->
+                        <div class="p-4 md:p-6 border-b border-slate-700/50 flex justify-between items-center bg-slate-800">
+                            <h3 class="text-base md:text-xl font-bold text-white">Cầu thủ Đang Rao Bán</h3>
                             <button id="refresh-market-btn" class="text-xs md:text-sm bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded font-bold text-yellow-400 transition whitespace-nowrap border border-slate-600">Làm mới (-€10k)</button>
                         </div>
-                        <div class="overflow-x-auto"><table class="w-full text-left border-collapse min-w-[500px]"><thead><tr class="bg-slate-900/50 text-slate-400 text-[10px] md:text-xs uppercase"><th class="p-3 md:p-4 pl-4 md:pl-6 w-16 md:w-20">Vị trí</th><th class="p-3 md:p-4">Cầu thủ</th><th class="p-3 md:p-4 text-center">OVR</th><th class="p-3 md:p-4 text-right pr-4 md:pr-6">Giá Niêm Yết</th><th class="p-3 md:p-4 w-20 md:w-24">Thao tác</th></tr></thead><tbody id="market-list-body" class="divide-y divide-slate-700/50 text-xs md:text-sm"></tbody></table></div>
+                        <div class="overflow-x-auto hide-scrollbar">
+                            <table class="w-full text-left border-collapse min-w-max">
+                                <thead>
+                                    <tr class="bg-slate-900/50 text-slate-400 text-[10px] md:text-xs uppercase">
+                                        <th class="p-3 text-center whitespace-nowrap">Vị trí</th>
+                                        <th class="p-3 w-full">Cầu thủ</th>
+                                        <th class="p-3 text-center whitespace-nowrap">OVR</th>
+                                        <th class="p-3 text-right whitespace-nowrap">Giá Niêm Yết</th>
+                                        <th class="p-3 text-center whitespace-nowrap">Thao tác</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="market-list-body" class="divide-y divide-slate-700/50 text-xs md:text-sm"></tbody>
+                            </table>
+                        </div>
                     </div>
                     <div id="transfer-offers-section" class="hidden bg-slate-800/80 rounded-2xl border border-slate-700/50 overflow-hidden shadow-xl p-4 md:p-6"><h3 class="text-lg md:text-xl font-bold text-white mb-2 md:mb-4">Đề Nghị Chuyển Nhượng</h3><p class="text-xs md:text-sm text-slate-400 mb-4">Quyết định Mua/Bán sẽ được BOT xem xét và chốt kết quả ngay sau khi bạn kết thúc 1 Vòng đấu.</p><div id="offers-list-container" class="space-y-4"></div></div>
                 </div>
