@@ -3,13 +3,14 @@ import { showLoading, hideLoading, showToast } from './ui-helpers.js';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+// GLOBAL STATE
 let currentUserId = null; let myClubName = "My Club"; let myBudget = 0; let myFame = 30;
 let myFacilities = { medical: 1, scouting: 1, training: 1, finance: 1, scoutingCooldown: 5, scoutedPlayer: null, medicalSlots: [], trainingSlots: [], pendingUpgrade: null };
 let globalPlayersList = []; let globalPlayersMap = {}; let currentFormation = '4-4-2'; let startingXI = new Array(11).fill(null); 
 let teamPower = { OVR: 0, ATT: 0, MID: 0, DEF: 0 };
 let leagueState = { currentRound: 1, standings: [], schedule: [], friendlyMatchesPlayed: 0, promotedBots: [], pendingBuys: [], pendingSells: [], rankHistory: [] };
 let newsInbox = []; let hasUnreadNews = false; let currentMarketList = []; let currentlyViewingPlayerId = null; let currentSlotToFill = null; let currentItemToApply = null;
-let activeSubView = null;
+let activeSubView = null; let activeOpponent = null; // Đã fix lỗi khai báo ở đây!
 
 const TABS = ['club', 'squad', 'league', 'news', 'settings'];
 const POS_COLORS = { 'GK': 'bg-yellow-600', 'DEF': 'bg-blue-600', 'MID': 'bg-green-600', 'FWD': 'bg-red-600' };
@@ -489,7 +490,7 @@ const processFacilitiesAndStamina = async () => {
             if(p.injury > 0) p.injury = Math.max(0, p.injury - 1);
         }
     });
-    if(injuryLogs.length > 0) window.pushNews('Bão Chấn Thương', `Các cầu thủ: ${injuryLogs.join(', ')} đã kiệt sức và chấn thương. Yêu cầu đưa vào TT Y tế gấp!`, false);
+    if(injuryLogs.length > 0) window.pushNews('Bão Chấn Thương', `Các cầu thủ: ${injuryLogs.join(', ')} đã kiệt sức và chấn thương. Yêu cầu đưa vào Trung tâm Y tế gấp!`, false);
 
     let healedLogs = [];
     if(myFacilities.medicalSlots.length > 0) {
@@ -532,7 +533,6 @@ const processFacilitiesAndStamina = async () => {
     }
 };
 
-// ================= MODULE 7: LEAGUE & MATCH =================
 function sortStandings() { leagueState.standings.sort((a, b) => { if (b.points !== a.points) return b.points - a.points; const gdA = a.gf - a.ga; const gdB = b.gf - b.ga; if (gdB !== gdA) return gdB - gdA; return b.gf - a.gf; }); }
 
 function renderLeagueView() {
@@ -583,8 +583,8 @@ function renderLeagueView() {
 }
 
 const startMatchEngine = (opponent, isFriendly) => {
-    if(startingXI.includes(null) || teamPower.OVR === 0) { showToast("Xếp đủ 11 cầu thủ vào Sân (Tab Đội hình -> Sơ đồ)!"); return; }
-    let lowStaminaCount = startingXI.filter(id => globalPlayersMap[id] && globalPlayersMap[id].stamina < 30).length; if (lowStaminaCount >= 3) showToast("Cảnh báo: Có cầu thủ kiệt sức. Cẩn thận chấn thương!", "warning");
+    if(startingXI.includes(null) || teamPower.OVR === 0) { showToast("Xếp đủ 11 cầu thủ vào Sân!"); return; }
+    let lowStaminaCount = startingXI.filter(id => globalPlayersMap[id] && globalPlayersMap[id].stamina < 30).length; if (lowStaminaCount >= 3) showToast("Cảnh báo: Đội có nhiều người kiệt sức. Dễ chấn thương!", "warning");
     
     toggleNavLock(true); document.getElementById('quick-play-btn').classList.add('hidden'); 
     document.getElementById('match-setup').classList.add('hidden'); document.getElementById('season-end-panel').classList.add('hidden'); document.getElementById('league-table-container').classList.add('hidden'); document.getElementById('match-live').classList.remove('hidden'); document.getElementById('finish-match-btn').classList.add('hidden');
@@ -619,7 +619,7 @@ const startMatchEngine = (opponent, isFriendly) => {
 
             const finishBtn = document.getElementById('finish-match-btn'); finishBtn.classList.remove('hidden');
             finishBtn.onclick = async () => { 
-                finishBtn.textContent = "Đang xử lý ngầm TTCN & Cơ sở hạ tầng..."; finishBtn.disabled = true; 
+                finishBtn.textContent = "Đang xử lý ngầm..."; finishBtn.disabled = true; 
                 await processTransferMarket(); await processFacilitiesAndStamina(); 
                 finishBtn.textContent = "Lưu thành tích vòng đấu"; finishBtn.disabled = false; 
                 finishBtn.onclick = () => { if(isFriendly) finishFriendlyMatch(totalEarnings); else finishLeagueRound(homeScore, awayScore, totalEarnings); }; 
@@ -667,7 +667,7 @@ const finishLeagueRound = async (userScore, botScore, totalEarnings) => {
         if(endSeasonMessage) showToast(endSeasonMessage, "success"); else showToast("Đã lưu kết quả vòng đấu!", "success");
         document.getElementById('match-live').classList.add('hidden'); document.getElementById('league-table-container').classList.remove('hidden'); renderLeagueView();
         
-        toggleNavLock(false); if (leagueState.currentRound <= 31) document.getElementById('quick-play-btn').classList.remove('hidden');
+        toggleNavLock(false); if (leagueState.currentRound <= 31 && document.getElementById('quick-play-btn')) document.getElementById('quick-play-btn').classList.remove('hidden');
 
     } catch (e) { showToast("Lỗi lưu kết quả!"); } finally { hideLoading(); }
 };
@@ -683,7 +683,7 @@ const finishFriendlyMatch = async (totalEarnings) => {
         await batch.commit();
         document.getElementById('match-live').classList.add('hidden'); document.getElementById('season-end-panel').classList.remove('hidden'); document.getElementById('league-table-container').classList.remove('hidden'); showToast("Hoàn tất trận giao hữu!", "success"); renderLeagueView(); 
         
-        toggleNavLock(false); if (leagueState.currentRound <= 31) document.getElementById('quick-play-btn').classList.remove('hidden');
+        toggleNavLock(false); if (leagueState.currentRound <= 31 && document.getElementById('quick-play-btn')) document.getElementById('quick-play-btn').classList.remove('hidden');
     } catch (e) { showToast("Lỗi!"); } finally { hideLoading(); }
 };
 
@@ -699,7 +699,7 @@ document.getElementById('start-new-season-btn')?.addEventListener('click', async
         const batch = writeBatch(db); globalPlayersList.forEach(p => { p.stamina = 100; p.injury = 0; batch.update(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', p.id), { stamina: 100, injury: 0 }); }); await batch.commit();
         await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState);
         renderSquadList(); renderPitch(); renderLeagueView(); showToast("Mùa giải mới! Thể lực đã hồi phục 100%.", "success");
-        document.getElementById('quick-play-btn').classList.remove('hidden');
+        if(document.getElementById('quick-play-btn')) document.getElementById('quick-play-btn').classList.remove('hidden');
     } catch(e) { showToast("Lỗi!"); } finally { hideLoading(); }
 });
 
