@@ -10,7 +10,7 @@ let globalPlayersList = []; let globalPlayersMap = {}; let currentFormation = '4
 let teamPower = { OVR: 0, ATT: 0, MID: 0, DEF: 0 };
 let leagueState = { currentRound: 1, standings: [], schedule: [], friendlyMatchesPlayed: 0, promotedBots: [], pendingBuys: [], pendingSells: [], rankHistory: [] };
 let newsInbox = []; let hasUnreadNews = false; let currentMarketList = []; let currentlyViewingPlayerId = null; let currentSlotToFill = null; let currentItemToApply = null;
-let activeSubView = null; let activeOpponent = null; // Đã fix lỗi khai báo ở đây!
+let activeSubView = null; let activeOpponent = null;
 
 const TABS = ['club', 'squad', 'league', 'news', 'settings'];
 const POS_COLORS = { 'GK': 'bg-yellow-600', 'DEF': 'bg-blue-600', 'MID': 'bg-green-600', 'FWD': 'bg-red-600' };
@@ -20,7 +20,7 @@ window.showToast = showToast; window.showLoading = showLoading; window.hideLoadi
 const STORE_ITEMS = [
     { id: 'item_speed', name: 'Giày Khinh Công', icon: '👟', desc: '+3 Tốc độ', price: 500000, type: 'stat', stat: 'PAC', amount: 3 },
     { id: 'item_shoot', name: 'Bia Đỡ Đạn', icon: '🎯', desc: '+3 Dứt điểm', price: 600000, type: 'stat', stat: 'SHO', amount: 3 },
-    { id: 'item_pass', name: 'Băng Đội', icon: '🧠', desc: '+3 Chuyền bóng', price: 400000, type: 'stat', stat: 'PAS', amount: 3 },
+    { id: 'item_pass', name: 'Băng Đội', icon: '🧠', desc: '+3 Chuyền', price: 400000, type: 'stat', stat: 'PAS', amount: 3 },
     { id: 'item_def', name: 'Tạ Chân', icon: '🛡️', desc: '+3 PN, +2 Thể lực', price: 500000, type: 'stat_multi', stats: {DEF: 3, PHY: 2} },
     { id: 'item_gacha', name: 'Lò Đào Tạo', icon: '⭐', desc: 'Tuyển 1 tài năng', price: 1000000, type: 'gacha' }
 ];
@@ -56,14 +56,14 @@ function switchView(v) {
     if(v === 'settings' && document.getElementById('setting-club-name')) document.getElementById('setting-club-name').value = myClubName;
 }
 
-window.openSubView = (subViewId) => {
+window.openSubView = function(subViewId) {
     TABS.forEach(id => { const el = document.getElementById(`view-${id}`); if(el) el.classList.add('hidden'); });
     const subEl = document.getElementById(`subview-${subViewId}`); if(subEl) subEl.classList.remove('hidden'); activeSubView = subViewId;
     if(subViewId === 'facilities') window.renderFacilities(); if(subViewId === 'squad-list') renderSquadList(); if(subViewId === 'tactics') renderPitch();
     if(subViewId === 'market' && document.getElementById('tab-transfer-market')) document.getElementById('tab-transfer-market').click();
 };
 
-window.closeSubView = (returnToParent = true) => {
+window.closeSubView = function(returnToParent = true) {
     if(!activeSubView) return;
     const subEl = document.getElementById(`subview-${activeSubView}`); if(subEl) subEl.classList.add('hidden');
     if(returnToParent) {
@@ -73,13 +73,12 @@ window.closeSubView = (returnToParent = true) => {
     activeSubView = null;
 };
 
-// GẮN SỰ KIỆN ĐIỀU HƯỚNG BẰNG DẤU ?. AN TOÀN
 TABS.forEach(v => { 
     document.getElementById(`nav-${v}`)?.addEventListener('click', (e) => { e.preventDefault(); switchView(v); });
     document.getElementById(`nav-${v}-mob`)?.addEventListener('click', (e) => { e.preventDefault(); switchView(v); });
 });
 
-window.saveSettings = async () => {
+window.saveSettings = async function() {
     const newName = document.getElementById('setting-club-name').value.trim(); if(!newName) { showToast("Tên không được bỏ trống!", "error"); return; }
     showLoading("ĐANG LƯU...");
     try {
@@ -89,30 +88,30 @@ window.saveSettings = async () => {
     } catch(e) { showToast("Lỗi lưu cài đặt!"); } finally { hideLoading(); }
 };
 
-window.resetGameData = async () => {
-    const cf = prompt("Xác nhận XÓA TOÀN BỘ dữ liệu Club? (Gõ 'YES')"); if(cf !== 'YES') return;
+window.resetGameData = async function() {
+    const cf = prompt("Xác nhận XÓA TOÀN BỘ dữ liệu? (Gõ 'YES')"); if(cf !== 'YES') return;
     showLoading("ĐANG XÓA..."); try { await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { clubName: "", budget: 0 }); location.reload(); } catch(e) { hideLoading(); }
 };
 
-const checkUnreadNews = () => {
+function checkUnreadNews() {
     const bPc = document.getElementById('news-badge-pc'); const bMob = document.getElementById('news-badge-mob');
     if(!bPc || !bMob) return;
     if(hasUnreadNews) { bPc.classList.remove('hidden'); bMob.classList.remove('hidden'); } else { bPc.classList.add('hidden'); bMob.classList.add('hidden'); }
-};
+}
 
-window.pushNews = (title, message, isGood) => {
+window.pushNews = function(title, message, isGood) {
     newsInbox.unshift({ id: Date.now()+Math.random(), title: title, message: message, isGood: isGood, time: `Vòng ${leagueState.currentRound}` });
     if(newsInbox.length > 30) newsInbox.pop(); hasUnreadNews = true; checkUnreadNews();
 };
 
-const renderNewsView = () => {
+function renderNewsView() {
     const c = document.getElementById('news-container'); if(!c) return; c.innerHTML = '';
     if(newsInbox.length === 0) { c.innerHTML = '<div class="text-center text-slate-500 text-sm mt-10 italic">Chưa có tin.</div>'; return; }
     newsInbox.forEach(n => {
         const icon = n.isGood === true ? '✅' : (n.isGood === false ? '❌' : '📰'); const borderColor = n.isGood === true ? 'border-green-500/50' : (n.isGood === false ? 'border-red-500/50' : 'border-blue-500/50');
         c.innerHTML += `<div class="bg-slate-800 p-4 rounded-xl border ${borderColor} shadow flex gap-3"><div class="text-2xl">${icon}</div><div><div class="flex justify-between items-center mb-1"><h4 class="font-bold text-white text-sm">${n.title}</h4><span class="text-[10px] text-slate-400">${n.time}</span></div><p class="text-xs text-slate-300 leading-relaxed">${n.message}</p></div></div>`;
     });
-};
+}
 document.getElementById('clear-news-btn')?.addEventListener('click', () => { newsInbox = []; renderNewsView(); hasUnreadNews = false; checkUnreadNews(); });
 
 let isLogin = true; 
@@ -129,7 +128,7 @@ onAuthStateChanged(auth, (user) => {
     else { document.getElementById('dashboard-section').classList.add('hidden'); document.getElementById('auth-container').classList.remove('hidden'); document.getElementById('quick-play-btn').classList.add('hidden'); }
 });
 
-const loadGameData = async (uid) => {
+async function loadGameData(uid) {
     showLoading("ĐANG TẢI DỮ LIỆU...");
     try {
         const profileSnap = await getDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'info'));
@@ -162,7 +161,7 @@ const loadGameData = async (uid) => {
             switchView('club'); if (leagueState.currentRound <= 31 && document.getElementById('quick-play-btn')) document.getElementById('quick-play-btn').classList.remove('hidden');
         } else { if(document.getElementById('init-club-modal')) document.getElementById('init-club-modal').classList.remove('hidden'); }
     } catch(e) { showToast("Lỗi tải dữ liệu. F5 lại trang."); } finally { hideLoading(); }
-};
+}
 
 document.getElementById('create-club-btn')?.addEventListener('click', async () => {
     const clubName = document.getElementById('club-name-input').value.trim(); if(!clubName) { showToast("Vui lòng nhập tên CLB!"); return; }
@@ -179,12 +178,12 @@ document.getElementById('create-club-btn')?.addEventListener('click', async () =
     } catch(e) { showToast("Lỗi tạo CLB!"); } finally { hideLoading(); }
 });
 
-const initLeagueData = async (uid, overrideName = null) => {
+async function initLeagueData(uid, overrideName = null) {
     let bots = []; let availableClubs = [...VN_CLUBS_POOL].filter(c => c !== overrideName); availableClubs.sort(() => Math.random() - 0.5);
     for (let i = 0; i < 31; i++) { bots.push({ id: `bot_${Date.now()}_${i}`, name: availableClubs[i], isUser: false, ovr: Math.floor(Math.random()*20)+60, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 }); }
     leagueState = { currentRound: 1, standings: [...bots, { id: 'user', name: overrideName || myClubName, isUser: true, ovr: 0, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 }], schedule: bots.map(b => b.id).sort(() => Math.random() - 0.5), friendlyMatchesPlayed: 0, promotedBots: [], pendingBuys: [], pendingSells: [], rankHistory: [] };
     await setDoc(doc(db, 'artifacts', appId, 'users', uid, 'league', 'state'), leagueState);
-};
+}
 
 function renderSquadList() {
     const tbody = document.getElementById('squad-list-body'); if(!tbody) return; tbody.innerHTML = '';
@@ -467,7 +466,7 @@ window.claimScoutedPlayer = async () => {
     } catch(e) { showToast("Lỗi!"); } finally { hideLoading(); }
 };
 
-const processFacilitiesAndStamina = async () => {
+async function processFacilitiesAndStamina() {
     if (myFacilities.pendingUpgrade) {
         myFacilities.pendingUpgrade.remaining--;
         if (myFacilities.pendingUpgrade.remaining <= 0) {
@@ -531,7 +530,42 @@ const processFacilitiesAndStamina = async () => {
             }
         }
     }
-};
+}
+
+async function processTransferMarket() {
+    let budgetRefunded = 0; let budgetEarned = 0;
+    if (leagueState.pendingBuys && leagueState.pendingBuys.length > 0) {
+        for (let b of leagueState.pendingBuys) {
+            let p = b.playerInfo; let bidRatio = b.bidAmount / p.value; let fameFactor = myFame / 100; let successChance = (bidRatio * 0.5) + (fameFactor * 0.5); let hijackRng = Math.random();
+            if (hijackRng <= successChance) {
+                const newPlayerRef = doc(collection(db, 'artifacts', appId, 'users', currentUserId, 'players')); p.isListed = false; p.itemsUsed = 0; p.stamina = 100; p.injury = 0; await setDoc(newPlayerRef, p);
+                p.id = newPlayerRef.id; globalPlayersList.push(p); globalPlayersMap[p.id] = p; 
+                window.pushNews(`Thương vụ ${p.name} Hoàn Tất`, `Câu lạc bộ đã chiêu mộ thành công ${p.name} với mức giá €${b.bidAmount.toLocaleString()}.`, true);
+            } else {
+                let randomClub = RICH_CLUBS[Math.floor(Math.random()*RICH_CLUBS.length)]; budgetRefunded += b.bidAmount; 
+                window.pushNews(`Mua ${p.name} Đổ Vỡ`, `Rất tiếc! Thương vụ đổ vỡ do **${randomClub}** nẫng tay trên. Hoàn €${b.bidAmount.toLocaleString()} về quỹ.`, false);
+            }
+        }
+        leagueState.pendingBuys = [];
+    }
+
+    if (leagueState.pendingSells && leagueState.pendingSells.length > 0) {
+        let remainingSells = [];
+        for (let s of leagueState.pendingSells) {
+            let botOffer = Math.floor(s.baseValue * (0.7 + Math.random() * 0.5));
+            if (botOffer >= s.askAmount) {
+                budgetEarned += botOffer; 
+                let currentNames = leagueState.standings.map(t => t.name); let randomBot = currentNames[Math.floor(Math.random()*currentNames.length)];
+                await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', s.playerId)); globalPlayersList = globalPlayersList.filter(x => x.id !== s.playerId); delete globalPlayersMap[s.playerId]; startingXI = startingXI.map(id => id === s.playerId ? null : id);
+                window.pushNews(`Bán ${s.playerName} Thành Công`, `${randomBot} đã mua ${s.playerName} với giá €${botOffer.toLocaleString()}. Tiền đã chuyển vào ngân sách.`, true);
+            } else { remainingSells.push(s); window.pushNews(`Ế ẩm: ${s.playerName}`, `Chưa có đối tác trả giá hợp lý cho ${s.playerName}. Cầu thủ vẫn đang nằm trên danh sách chờ bán.`, null); }
+        }
+        leagueState.pendingSells = remainingSells;
+    }
+    
+    generateMarketPlayers();
+    myBudget = myBudget + budgetRefunded + budgetEarned; updateHeaderDisplay(); 
+}
 
 function sortStandings() { leagueState.standings.sort((a, b) => { if (b.points !== a.points) return b.points - a.points; const gdA = a.gf - a.ga; const gdB = b.gf - b.ga; if (gdB !== gdA) return gdB - gdA; return b.gf - a.gf; }); }
 
