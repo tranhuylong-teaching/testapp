@@ -39,6 +39,102 @@ function updateHeaderDisplay() {
     if(document.getElementById('header-club-name')) document.getElementById('header-club-name').textContent = myClubName;
 }
 
+// Khai báo biến toàn cục để lưu instance của biểu đồ
+let rankChartInstance = null;
+
+function renderClubDashboard() {
+    // 1. Cập nhật thống kê nhanh
+    let userTeam = leagueState.standings.find(t => t.isUser);
+    if (!userTeam) return;
+
+    if(document.getElementById('dash-budget')) document.getElementById('dash-budget').textContent = `€${(myBudget/1000000).toFixed(2)}M`;
+    if(document.getElementById('dash-fame')) document.getElementById('dash-fame').textContent = myFame;
+    if(document.getElementById('dash-record')) document.getElementById('dash-record').textContent = `${userTeam.won}T - ${userTeam.drawn}H - ${userTeam.lost}B`;
+    if(document.getElementById('dash-points')) document.getElementById('dash-points').textContent = userTeam.points;
+
+    // 2. Lọc và hiển thị Sự kiện Tài trợ / Tài chính từ Hộp thư tin tức
+    const sponsorContainer = document.getElementById('sponsor-events-list');
+    if(sponsorContainer) {
+        // Lọc các tin có chứa từ khoá tài chính hoặc tài trợ
+        let sponsorNews = newsInbox.filter(n => n.title.toLowerCase().includes('tài trợ') || n.title.toLowerCase().includes('tài chính') || n.title.toLowerCase().includes('phạt') || (n.isGood && n.title.includes('Bán')));
+        
+        if(sponsorNews.length === 0) {
+            sponsorContainer.innerHTML = '<div class="text-center text-slate-500 italic mt-6 text-sm">Chưa có hoạt động dòng tiền nổi bật.</div>';
+        } else {
+            sponsorContainer.innerHTML = sponsorNews.slice(0, 5).map(n => `
+                <div class="bg-slate-900/50 p-3 rounded-lg border-l-4 ${n.isGood ? 'border-green-500' : 'border-red-500'}">
+                    <div class="font-bold ${n.isGood ? 'text-green-400' : 'text-red-400'} text-xs md:text-sm mb-1">${n.title}</div>
+                    <div class="text-[10px] md:text-xs text-slate-300 leading-relaxed">${n.message}</div>
+                </div>
+            `).join('');
+        }
+    }
+
+    // 3. Render Biểu đồ thứ hạng bằng Chart.js
+    const chartCtx = document.getElementById('rankChart');
+    if(!chartCtx) return;
+    
+    // Hủy biểu đồ cũ nếu đã vẽ trước đó để tránh lỗi vẽ đè (memory leak)
+    if (rankChartInstance) { rankChartInstance.destroy(); }
+
+    // Tạo mảng Labels cho trục X (Ví dụ: Vòng 1, Vòng 2...)
+    let labels = [];
+    let rankData = leagueState.rankHistory || [];
+    
+    // Nếu chưa đá vòng nào, hiển thị mặc định
+    if(rankData.length === 0) {
+        labels = ['Vòng 1'];
+        let currentRank = leagueState.standings.findIndex(t => t.isUser) + 1;
+        rankData = [currentRank];
+    } else {
+        labels = Array.from({length: rankData.length}, (_, i) => `Vòng ${i+1}`);
+    }
+
+    rankChartInstance = new Chart(chartCtx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Thứ hạng',
+                data: rankData,
+                borderColor: '#10b981', // green-500
+                backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                borderWidth: 3,
+                fill: true,
+                tension: 0.3, // Làm cong đường line
+                pointBackgroundColor: '#10b981',
+                pointRadius: 4,
+                pointHoverRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: { 
+                    reverse: true, // Xếp hạng 1 nằm trên cùng
+                    min: 1, 
+                    max: 32, 
+                    ticks: { stepSize: 5, color: '#94a3b8' },
+                    grid: { color: 'rgba(51, 65, 85, 0.5)' }
+                },
+                x: { 
+                    ticks: { color: '#94a3b8', maxTicksLimit: 10 },
+                    grid: { color: 'rgba(51, 65, 85, 0.5)' }
+                }
+            },
+            plugins: { 
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) { return 'Hạng: ' + context.parsed.y; }
+                    }
+                }
+            }
+        }
+    });
+}
+
 function switchView(v) {
     window.closeSubView(false);
     TABS.forEach(id => { 
@@ -49,7 +145,8 @@ function switchView(v) {
     const viewV = document.getElementById(`view-${v}`); if(viewV) viewV.classList.remove('hidden'); 
     const aNav = document.getElementById(`nav-${v}`); if(aNav) aNav.className = "block px-4 py-3 bg-green-900/40 text-green-400 font-medium rounded-lg border border-green-900/50";
     const aMob = document.getElementById(`nav-${v}-mob`); if(aMob) aMob.className = "flex flex-col items-center text-green-400 transition-colors";
-    
+
+    if(v === 'club') renderClubDashboard();
     if(v === 'squad' && document.getElementById('squad-count')) document.getElementById('squad-count').textContent = globalPlayersList.length;
     if(v === 'league') renderLeagueView(); 
     if(v === 'news') { renderNewsView(); hasUnreadNews = false; checkUnreadNews(); }
