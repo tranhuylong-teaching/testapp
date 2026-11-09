@@ -3,7 +3,6 @@ import { showLoading, hideLoading, showToast } from './ui-helpers.js';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// GLOBAL STATE
 let currentUserId = null; let myClubName = "My Club"; let myBudget = 0; let myFame = 30;
 let myFacilities = { medical: 1, scouting: 1, training: 1, finance: 1, scoutingCooldown: 5, scoutedPlayer: null, medicalSlots: [], trainingSlots: [], pendingUpgrade: null };
 let globalPlayersList = []; let globalPlayersMap = {}; let currentFormation = '4-4-2'; let startingXI = new Array(11).fill(null); 
@@ -20,9 +19,9 @@ window.showToast = showToast; window.showLoading = showLoading; window.hideLoadi
 const STORE_ITEMS = [
     { id: 'item_speed', name: 'Giày Khinh Công', icon: '👟', desc: '+3 Tốc độ', price: 500000, type: 'stat', stat: 'PAC', amount: 3 },
     { id: 'item_shoot', name: 'Bia Đỡ Đạn', icon: '🎯', desc: '+3 Dứt điểm', price: 600000, type: 'stat', stat: 'SHO', amount: 3 },
-    { id: 'item_pass', name: 'Băng Đội Trưởng', icon: '🧠', desc: '+3 Chuyền bóng', price: 400000, type: 'stat', stat: 'PAS', amount: 3 },
-    { id: 'item_def', name: 'Tạ Chân', icon: '🛡️', desc: '+3 Phòng ngự, +2 Thể chất', price: 500000, type: 'stat_multi', stats: {DEF: 3, PHY: 2} },
-    { id: 'item_gacha', name: 'Lò Đào Tạo Trẻ', icon: '⭐', desc: 'Tuyển 1 tài năng (OVR 60-75)', price: 1000000, type: 'gacha' }
+    { id: 'item_pass', name: 'Băng Đội', icon: '🧠', desc: '+3 Chuyền bóng', price: 400000, type: 'stat', stat: 'PAS', amount: 3 },
+    { id: 'item_def', name: 'Tạ Chân', icon: '🛡️', desc: '+3 PN, +2 Thể lực', price: 500000, type: 'stat_multi', stats: {DEF: 3, PHY: 2} },
+    { id: 'item_gacha', name: 'Lò Đào Tạo', icon: '⭐', desc: 'Tuyển 1 tài năng', price: 1000000, type: 'gacha' }
 ];
 
 function toggleNavLock(isLocked) { document.querySelectorAll('aside nav, nav.fixed').forEach(n => isLocked ? n.classList.add('pointer-events-none', 'opacity-50') : n.classList.remove('pointer-events-none', 'opacity-50')); }
@@ -34,9 +33,9 @@ function getRarityClass(ovr) {
 }
 
 function updateHeaderDisplay() {
-    document.getElementById('budget-display').textContent = `€${(myBudget/1000000).toFixed(2)}M`;
-    document.getElementById('fame-display').textContent = `🌟 ${myFame}`;
-    document.getElementById('header-club-name').textContent = myClubName;
+    if(document.getElementById('budget-display')) document.getElementById('budget-display').textContent = `€${(myBudget/1000000).toFixed(2)}M`;
+    if(document.getElementById('fame-display')) document.getElementById('fame-display').textContent = `🌟 ${myFame}`;
+    if(document.getElementById('header-club-name')) document.getElementById('header-club-name').textContent = myClubName;
 }
 
 function switchView(v) {
@@ -46,21 +45,21 @@ function switchView(v) {
         const nEl = document.getElementById(`nav-${id}`); if(nEl) nEl.className = "block px-4 py-3 hover:bg-slate-800 text-slate-300 rounded-lg border border-transparent";
         const mEl = document.getElementById(`nav-${id}-mob`); if(mEl) mEl.className = "flex flex-col items-center text-slate-400 hover:text-white transition-colors";
     });
-    document.getElementById(`view-${v}`).classList.remove('hidden'); 
+    const viewV = document.getElementById(`view-${v}`); if(viewV) viewV.classList.remove('hidden'); 
     const aNav = document.getElementById(`nav-${v}`); if(aNav) aNav.className = "block px-4 py-3 bg-green-900/40 text-green-400 font-medium rounded-lg border border-green-900/50";
     const aMob = document.getElementById(`nav-${v}-mob`); if(aMob) aMob.className = "flex flex-col items-center text-green-400 transition-colors";
     
-    if(v === 'squad') document.getElementById('squad-count').textContent = globalPlayersList.length;
+    if(v === 'squad' && document.getElementById('squad-count')) document.getElementById('squad-count').textContent = globalPlayersList.length;
     if(v === 'league') renderLeagueView(); 
     if(v === 'news') { renderNewsView(); hasUnreadNews = false; checkUnreadNews(); }
-    if(v === 'settings') document.getElementById('setting-club-name').value = myClubName;
+    if(v === 'settings' && document.getElementById('setting-club-name')) document.getElementById('setting-club-name').value = myClubName;
 }
 
 window.openSubView = (subViewId) => {
     TABS.forEach(id => { const el = document.getElementById(`view-${id}`); if(el) el.classList.add('hidden'); });
     const subEl = document.getElementById(`subview-${subViewId}`); if(subEl) subEl.classList.remove('hidden'); activeSubView = subViewId;
     if(subViewId === 'facilities') window.renderFacilities(); if(subViewId === 'squad-list') renderSquadList(); if(subViewId === 'tactics') renderPitch();
-    if(subViewId === 'market') document.getElementById('tab-transfer-market').click();
+    if(subViewId === 'market' && document.getElementById('tab-transfer-market')) document.getElementById('tab-transfer-market').click();
 };
 
 window.closeSubView = (returnToParent = true) => {
@@ -73,9 +72,10 @@ window.closeSubView = (returnToParent = true) => {
     activeSubView = null;
 };
 
+// GẮN SỰ KIỆN ĐIỀU HƯỚNG BẰNG DẤU ?. AN TOÀN
 TABS.forEach(v => { 
-    const btn = document.getElementById(`nav-${v}`); if(btn) btn.addEventListener('click', (e) => { e.preventDefault(); switchView(v); });
-    const btnMob = document.getElementById(`nav-${v}-mob`); if(btnMob) btnMob.addEventListener('click', (e) => { e.preventDefault(); switchView(v); });
+    document.getElementById(`nav-${v}`)?.addEventListener('click', (e) => { e.preventDefault(); switchView(v); });
+    document.getElementById(`nav-${v}-mob`)?.addEventListener('click', (e) => { e.preventDefault(); switchView(v); });
 });
 
 window.saveSettings = async () => {
@@ -95,6 +95,7 @@ window.resetGameData = async () => {
 
 const checkUnreadNews = () => {
     const bPc = document.getElementById('news-badge-pc'); const bMob = document.getElementById('news-badge-mob');
+    if(!bPc || !bMob) return;
     if(hasUnreadNews) { bPc.classList.remove('hidden'); bMob.classList.remove('hidden'); } else { bPc.classList.add('hidden'); bMob.classList.add('hidden'); }
 };
 
@@ -104,26 +105,26 @@ window.pushNews = (title, message, isGood) => {
 };
 
 const renderNewsView = () => {
-    const c = document.getElementById('news-container'); c.innerHTML = '';
+    const c = document.getElementById('news-container'); if(!c) return; c.innerHTML = '';
     if(newsInbox.length === 0) { c.innerHTML = '<div class="text-center text-slate-500 text-sm mt-10 italic">Chưa có tin.</div>'; return; }
     newsInbox.forEach(n => {
         const icon = n.isGood === true ? '✅' : (n.isGood === false ? '❌' : '📰'); const borderColor = n.isGood === true ? 'border-green-500/50' : (n.isGood === false ? 'border-red-500/50' : 'border-blue-500/50');
         c.innerHTML += `<div class="bg-slate-800 p-4 rounded-xl border ${borderColor} shadow flex gap-3"><div class="text-2xl">${icon}</div><div><div class="flex justify-between items-center mb-1"><h4 class="font-bold text-white text-sm">${n.title}</h4><span class="text-[10px] text-slate-400">${n.time}</span></div><p class="text-xs text-slate-300 leading-relaxed">${n.message}</p></div></div>`;
     });
 };
-document.getElementById('clear-news-btn').addEventListener('click', () => { newsInbox = []; renderNewsView(); hasUnreadNews = false; checkUnreadNews(); });
+document.getElementById('clear-news-btn')?.addEventListener('click', () => { newsInbox = []; renderNewsView(); hasUnreadNews = false; checkUnreadNews(); });
 
 let isLogin = true; 
-document.getElementById('toggle-mode-btn').addEventListener('click', (e) => { e.preventDefault(); isLogin = !isLogin; document.getElementById('auth-submit-btn').textContent = isLogin ? "Đăng Nhập" : "Đăng Ký"; document.getElementById('auth-toggle-text').textContent = isLogin ? "Chưa có tài khoản?" : "Đã có tài khoản?"; });
-document.getElementById('auth-form').addEventListener('submit', async (e) => { 
+document.getElementById('toggle-mode-btn')?.addEventListener('click', (e) => { e.preventDefault(); isLogin = !isLogin; document.getElementById('auth-submit-btn').textContent = isLogin ? "Đăng Nhập" : "Đăng Ký"; document.getElementById('auth-toggle-text').textContent = isLogin ? "Chưa có tài khoản?" : "Đã có tài khoản?"; });
+document.getElementById('auth-form')?.addEventListener('submit', async (e) => { 
     e.preventDefault(); document.getElementById('auth-submit-btn').disabled = true; document.getElementById('auth-error').classList.add('hidden'); showLoading(isLogin ? "ĐANG XÁC THỰC..." : "ĐANG TẠO TÀI KHOẢN...");
     try { if(isLogin) await signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value); else await createUserWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value); } 
     catch(err) { document.getElementById('auth-error').textContent = err.message; document.getElementById('auth-error').classList.remove('hidden'); document.getElementById('auth-submit-btn').disabled = false; } finally { hideLoading(); }
 });
-document.getElementById('logout-btn').addEventListener('click', () => { showLoading("ĐANG ĐĂNG XUẤT..."); signOut(auth).then(() => { location.reload(); }); });
+document.getElementById('logout-btn')?.addEventListener('click', () => { showLoading("ĐANG ĐĂNG XUẤT..."); signOut(auth).then(() => { location.reload(); }); });
 
 onAuthStateChanged(auth, (user) => {
-    if (user) { document.getElementById('auth-container').classList.add('hidden'); document.getElementById('dashboard-section').classList.remove('hidden'); currentUserId = user.uid; document.getElementById('user-email-display').textContent = user.email; loadGameData(user.uid); } 
+    if (user) { document.getElementById('auth-container').classList.add('hidden'); document.getElementById('dashboard-section').classList.remove('hidden'); currentUserId = user.uid; if(document.getElementById('user-email-display')) document.getElementById('user-email-display').textContent = user.email; loadGameData(user.uid); } 
     else { document.getElementById('dashboard-section').classList.add('hidden'); document.getElementById('auth-container').classList.remove('hidden'); document.getElementById('quick-play-btn').classList.add('hidden'); }
 });
 
@@ -147,7 +148,7 @@ const loadGameData = async (uid) => {
                 globalPlayersList.push(d); globalPlayersMap[d.id] = d; 
             });
             const tacSnap = await getDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'tactics'));
-            if(tacSnap.exists()) { const tData = tacSnap.data(); currentFormation = tData.formation || '4-4-2'; document.getElementById('formation-select').value = currentFormation; startingXI = tData.startingXI || new Array(11).fill(null); } 
+            if(tacSnap.exists()) { const tData = tacSnap.data(); currentFormation = tData.formation || '4-4-2'; if(document.getElementById('formation-select')) document.getElementById('formation-select').value = currentFormation; startingXI = tData.startingXI || new Array(11).fill(null); } 
             else if(globalPlayersList.length >= 11) {
                 startingXI = new Array(11).fill(null); const layout = currentFormation.split('-').map(Number); layout.reverse(); layout.push(1);
                 let expPos = []; layout.forEach((count, idx) => { for(let i=0; i<count; i++) expPos.push(['FWD', 'MID', 'DEF', 'GK'][idx]); });
@@ -157,12 +158,12 @@ const loadGameData = async (uid) => {
             calcTeamPower();
             const leagueSnap = await getDoc(doc(db, 'artifacts', appId, 'users', uid, 'league', 'state'));
             if (leagueSnap.exists()) { leagueState = leagueSnap.data(); if (!leagueState.promotedBots) leagueState.promotedBots = []; if (!leagueState.pendingBuys) leagueState.pendingBuys = []; if (!leagueState.pendingSells) leagueState.pendingSells = []; if (!leagueState.rankHistory) leagueState.rankHistory = []; } else { await initLeagueData(uid, myClubName); }
-            switchView('club'); if (leagueState.currentRound <= 31) document.getElementById('quick-play-btn').classList.remove('hidden');
-        } else { document.getElementById('init-club-modal').classList.remove('hidden'); }
+            switchView('club'); if (leagueState.currentRound <= 31 && document.getElementById('quick-play-btn')) document.getElementById('quick-play-btn').classList.remove('hidden');
+        } else { if(document.getElementById('init-club-modal')) document.getElementById('init-club-modal').classList.remove('hidden'); }
     } catch(e) { showToast("Lỗi tải dữ liệu. F5 lại trang."); } finally { hideLoading(); }
 };
 
-document.getElementById('create-club-btn').addEventListener('click', async () => {
+document.getElementById('create-club-btn')?.addEventListener('click', async () => {
     const clubName = document.getElementById('club-name-input').value.trim(); if(!clubName) { showToast("Vui lòng nhập tên CLB!"); return; }
     document.getElementById('create-club-btn').disabled = true; showLoading("ĐANG TẠO ĐỘI HÌNH...");
     try {
@@ -185,7 +186,7 @@ const initLeagueData = async (uid, overrideName = null) => {
 };
 
 function renderSquadList() {
-    const tbody = document.getElementById('squad-list-body'); tbody.innerHTML = '';
+    const tbody = document.getElementById('squad-list-body'); if(!tbody) return; tbody.innerHTML = '';
     [...globalPlayersList].sort((a, b) => (POS_ORDER[a.pos] - POS_ORDER[b.pos] || b.ovr - a.ovr)).forEach(p => {
         let statusHtml = p.isListed ? '<span class="text-[10px] md:text-xs bg-red-900 text-red-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">Chờ bán</span>' : (myFacilities.medicalSlots.includes(p.id) ? '<span class="text-[10px] md:text-xs bg-yellow-900 text-yellow-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">🏥 Y tế</span>' : (myFacilities.trainingSlots.includes(p.id) ? '<span class="text-[10px] md:text-xs bg-blue-900 text-blue-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">🏋️ Tập</span>' : (startingXI.includes(p.id) ? '<span class="text-[10px] md:text-xs bg-green-900 text-green-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">⚽ Sân</span>' : '<span class="text-[10px] md:text-xs bg-slate-700 text-slate-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">🪑 Dự bị</span>')));
         const stColor = p.injury > 0 ? 'text-red-500 font-bold' : (p.stamina >= 80 ? 'text-green-400' : (p.stamina >= 50 ? 'text-yellow-400' : 'text-red-400')); const stBg = p.stamina >= 80 ? 'bg-green-400' : (p.stamina >= 50 ? 'bg-yellow-400' : 'bg-red-500'); const rarity = getRarityClass(p.ovr);
@@ -211,7 +212,7 @@ window.openPlayerDetail = (playerId) => {
     else sCont.innerHTML = fBtn + `<button onclick="window.listPlayerForSale()" class="w-full py-1.5 md:py-2 bg-red-600 hover:bg-red-500 text-white rounded font-bold shadow-lg transition mt-2 mb-2 text-xs md:text-sm">Đưa lên TTCN</button><button onclick="window.terminateContract()" class="w-full py-1.5 bg-transparent border border-red-800 text-red-500 hover:bg-red-900/30 rounded transition text-xs md:text-sm">Thanh lý</button>`; 
     document.getElementById('player-detail-modal').classList.remove('hidden');
 };
-document.getElementById('close-detail-modal').addEventListener('click', () => { document.getElementById('player-detail-modal').classList.add('hidden'); });
+document.getElementById('close-detail-modal')?.addEventListener('click', () => { document.getElementById('player-detail-modal').classList.add('hidden'); });
 
 function calcTeamPower() {
     let totalOVR = 0, count = 0, uAtt = 0, uAttC = 0, uMid = 0, uMidC = 0, uDef = 0, uDefC = 0;
@@ -229,7 +230,7 @@ function calcTeamPower() {
 }
 
 function renderPitch() {
-    const container = document.getElementById('pitch-container'); container.innerHTML = ''; const layout = currentFormation.split('-').map(Number); layout.reverse(); layout.push(1); let slotIndex = 0;
+    const container = document.getElementById('pitch-container'); if(!container) return; container.innerHTML = ''; const layout = currentFormation.split('-').map(Number); layout.reverse(); layout.push(1); let slotIndex = 0;
     layout.forEach((rowCount, rowIndex) => {
         const expectedPos = ['FWD', 'MID', 'DEF', 'GK'][rowIndex]; const rowDiv = document.createElement('div'); rowDiv.className = "flex justify-center items-center w-full gap-1 sm:gap-6";
         for(let i=0; i<rowCount; i++) {
@@ -245,7 +246,7 @@ function renderPitch() {
     calcTeamPower();
 }
 
-document.getElementById('formation-select').addEventListener('change', (e) => { 
+document.getElementById('formation-select')?.addEventListener('change', (e) => { 
     currentFormation = e.target.value; const layout = currentFormation.split('-').map(Number); layout.reverse(); layout.push(1); let expPos = []; layout.forEach((count, idx) => { for(let i=0; i<count; i++) expPos.push(['FWD', 'MID', 'DEF', 'GK'][idx]); });
     let newXI = new Array(11).fill(null); let avail = startingXI.filter(id => id !== null).map(id => globalPlayersMap[id]);
     expPos.forEach((reqPos, index) => { let matchIdx = avail.findIndex(p => p && p.pos === reqPos); if (matchIdx !== -1) { newXI[index] = avail[matchIdx].id; avail.splice(matchIdx, 1); } });
@@ -266,13 +267,13 @@ window.closeBenchSelect = () => { document.getElementById('select-player-modal')
 window.assignPlayerToSlot = (id) => { if(currentSlotToFill !== null) { startingXI[currentSlotToFill] = id; renderPitch(); window.closeBenchSelect(); } };
 window.removePlayerFromSlot = () => { if(currentSlotToFill !== null) { startingXI[currentSlotToFill] = null; renderPitch(); window.closeBenchSelect(); } };
 
-document.getElementById('save-tactics-btn').addEventListener('click', async () => { 
+document.getElementById('save-tactics-btn')?.addEventListener('click', async () => { 
     showLoading("ĐANG LƯU..."); try { await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'tactics'), { formation: currentFormation, startingXI: startingXI }); showToast("Đã lưu chiến thuật!"); } catch(e) { showToast("Lỗi!"); } finally { hideLoading(); }
 });
 
 // ================= THỊ TRƯỜNG & VẬT PHẨM =================
-document.getElementById('tab-transfer-market').addEventListener('click', () => { document.getElementById('transfer-market-section').classList.remove('hidden'); document.getElementById('store-section').classList.add('hidden'); document.getElementById('tab-transfer-market').className = "px-3 py-1.5 font-bold text-green-400 border-b-2 border-green-400 whitespace-nowrap"; document.getElementById('tab-store').className = "px-3 py-1.5 font-medium text-slate-400 hover:text-white transition whitespace-nowrap"; });
-document.getElementById('tab-store').addEventListener('click', () => { document.getElementById('transfer-market-section').classList.add('hidden'); document.getElementById('store-section').classList.remove('hidden'); document.getElementById('tab-transfer-market').className = "px-3 py-1.5 font-medium text-slate-400 hover:text-white transition whitespace-nowrap"; document.getElementById('tab-store').className = "px-3 py-1.5 font-bold text-green-400 border-b-2 border-green-400 whitespace-nowrap"; renderStore(); });
+document.getElementById('tab-transfer-market')?.addEventListener('click', () => { document.getElementById('transfer-market-section').classList.remove('hidden'); document.getElementById('store-section').classList.add('hidden'); document.getElementById('tab-transfer-market').className = "px-3 py-1.5 font-bold text-green-400 border-b-2 border-green-400 whitespace-nowrap"; document.getElementById('tab-store').className = "px-3 py-1.5 font-medium text-slate-400 hover:text-white transition whitespace-nowrap"; });
+document.getElementById('tab-store')?.addEventListener('click', () => { document.getElementById('transfer-market-section').classList.add('hidden'); document.getElementById('store-section').classList.remove('hidden'); document.getElementById('tab-transfer-market').className = "px-3 py-1.5 font-medium text-slate-400 hover:text-white transition whitespace-nowrap"; document.getElementById('tab-store').className = "px-3 py-1.5 font-bold text-green-400 border-b-2 border-green-400 whitespace-nowrap"; window.renderStore(); });
 
 function generateMarketPlayers() {
     currentMarketList = []; for(let i=0; i<8; i++) { 
@@ -285,14 +286,14 @@ function generateMarketPlayers() {
 
 function renderTransferMarket() {
     if(currentMarketList.length === 0) generateMarketPlayers();
-    const tbody = document.getElementById('market-list-body'); tbody.innerHTML = '';
+    const tbody = document.getElementById('market-list-body'); if(!tbody) return; tbody.innerHTML = '';
     currentMarketList.forEach(p => {
         let isPending = leagueState.pendingBuys?.find(b => b.marketId === p.id); const rarity = getRarityClass(p.ovr);
         tbody.innerHTML += `<tr class="hover:bg-slate-700/50 transition-colors"><td class="p-3 text-center whitespace-nowrap"><span class="${POS_COLORS[p.pos]} text-white text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-1 rounded w-10 md:w-12 inline-block text-center">${p.pos}</span></td><td class="p-3 font-medium text-white w-full"><div class="whitespace-nowrap">${p.name} ${p.ovr >= 85 ? '<span class="text-[9px] text-yellow-400 ml-1">(Fame > 60)</span>' : ''}</div></td><td class="p-3 text-center font-bold whitespace-nowrap ${rarity.text}">${p.ovr}</td><td class="p-3 text-right text-yellow-400 whitespace-nowrap">€${p.value.toLocaleString()}</td><td class="p-3 text-center whitespace-nowrap">${isPending ? `<button disabled class="bg-slate-700 text-slate-400 text-[10px] md:text-xs px-2 md:px-3 py-1.5 rounded font-bold cursor-not-allowed">Chờ</button>` : `<button onclick="window.makeBuyOffer('${p.id}')" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] md:text-xs px-2 md:px-3 py-1.5 rounded font-bold shadow transition">Mua</button>`}</td></tr>`;
     });
 }
 
-document.getElementById('refresh-market-btn').addEventListener('click', async () => { 
+document.getElementById('refresh-market-btn')?.addEventListener('click', async () => { 
     if(myBudget < 10000) { showToast("Không đủ €10,000!", "error"); return; }
     if(confirm("Chi €10,000 tìm lứa cầu thủ mới?")) { showLoading("ĐANG TÌM..."); try { myBudget -= 10000; updateHeaderDisplay(); await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { budget: myBudget }, { merge: true }); generateMarketPlayers(); renderTransferMarket(); showToast("Đã làm mới TTCN!", "success"); } catch (e) { showToast("Lỗi!"); } finally { hideLoading(); } }
 });
@@ -339,6 +340,11 @@ window.terminateContract = async () => {
             if(activeSubView === 'squad-list') renderSquadList(); renderPitch(); showToast(`Đã thanh lý ${p.name}.`, "warning");
         } catch(e) { showToast("Lỗi!"); } finally { hideLoading(); }
     }
+};
+
+window.renderStore = function() {
+    const container = document.getElementById('store-items-container'); if(!container) return; container.innerHTML = '';
+    STORE_ITEMS.forEach(item => { container.innerHTML += `<div class="bg-slate-800/80 border border-slate-700 rounded-xl p-6 shadow-lg flex flex-col justify-between hover:border-indigo-500/50 transition-colors"><div><div class="text-4xl mb-3">${item.icon}</div><h3 class="text-xl font-bold text-white mb-1">${item.name}</h3><p class="text-slate-400 text-sm mb-4">${item.desc}</p></div><div><div class="text-yellow-400 font-bold mb-3 text-lg">€${item.price.toLocaleString()}</div><button onclick="window.buyItem('${item.id}')" class="w-full py-2 ${item.type === 'gacha' ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-indigo-600 hover:bg-indigo-500'} text-white font-bold rounded-lg transition shadow-lg">${item.type === 'gacha' ? 'Mở Gói Ngay' : 'Mua & Sử dụng'}</button></div></div>`; });
 };
 
 window.buyItem = async (itemId) => {
@@ -483,7 +489,7 @@ const processFacilitiesAndStamina = async () => {
             if(p.injury > 0) p.injury = Math.max(0, p.injury - 1);
         }
     });
-    if(injuryLogs.length > 0) window.pushNews('Bão Chấn Thương', `Các cầu thủ: ${injuryLogs.join(', ')} đã bị kiệt sức và chấn thương. Yêu cầu đưa vào Trung tâm Y tế gấp!`, false);
+    if(injuryLogs.length > 0) window.pushNews('Bão Chấn Thương', `Các cầu thủ: ${injuryLogs.join(', ')} đã kiệt sức và chấn thương. Yêu cầu đưa vào TT Y tế gấp!`, false);
 
     let healedLogs = [];
     if(myFacilities.medicalSlots.length > 0) {
@@ -562,14 +568,10 @@ function renderLeagueView() {
             document.getElementById('setup-home-def').textContent = teamPower.DEF;
 
             const botOvr = opponent.ovr;
-            const awayATT = botOvr + ((leagueState.currentRound + 1) % 5 - 2);
-            const awayMID = botOvr + ((leagueState.currentRound + 2) % 5 - 2);
-            const awayDEF = botOvr + ((leagueState.currentRound + 3) % 5 - 2);
-            
             document.getElementById('setup-away-ovr').textContent = botOvr;
-            document.getElementById('setup-away-att').textContent = awayATT;
-            document.getElementById('setup-away-mid').textContent = awayMID;
-            document.getElementById('setup-away-def').textContent = awayDEF;
+            document.getElementById('setup-away-att').textContent = botOvr + ((leagueState.currentRound + 1) % 5 - 2);
+            document.getElementById('setup-away-mid').textContent = botOvr + ((leagueState.currentRound + 2) % 5 - 2);
+            document.getElementById('setup-away-def').textContent = botOvr + ((leagueState.currentRound + 3) % 5 - 2);
         }
     }
     const tbody = document.getElementById('league-table-body'); tbody.innerHTML = '';
@@ -581,8 +583,8 @@ function renderLeagueView() {
 }
 
 const startMatchEngine = (opponent, isFriendly) => {
-    if(startingXI.includes(null) || teamPower.OVR === 0) { showToast("Xếp đủ 11 cầu thủ vào Sân (Tab Đội hình -> Chiến Thuật)!"); return; }
-    let lowStaminaCount = startingXI.filter(id => globalPlayersMap[id] && globalPlayersMap[id].stamina < 30).length; if (lowStaminaCount >= 3) showToast("Cảnh báo: Đội có cầu thủ kiệt sức. Cẩn thận chấn thương!", "warning");
+    if(startingXI.includes(null) || teamPower.OVR === 0) { showToast("Xếp đủ 11 cầu thủ vào Sân (Tab Đội hình -> Sơ đồ)!"); return; }
+    let lowStaminaCount = startingXI.filter(id => globalPlayersMap[id] && globalPlayersMap[id].stamina < 30).length; if (lowStaminaCount >= 3) showToast("Cảnh báo: Có cầu thủ kiệt sức. Cẩn thận chấn thương!", "warning");
     
     toggleNavLock(true); document.getElementById('quick-play-btn').classList.add('hidden'); 
     document.getElementById('match-setup').classList.add('hidden'); document.getElementById('season-end-panel').classList.add('hidden'); document.getElementById('league-table-container').classList.add('hidden'); document.getElementById('match-live').classList.remove('hidden'); document.getElementById('finish-match-btn').classList.add('hidden');
@@ -626,8 +628,8 @@ const startMatchEngine = (opponent, isFriendly) => {
     }, 300); 
 };
 
-document.getElementById('start-league-match-btn').addEventListener('click', () => { const opponentId = leagueState.schedule[leagueState.currentRound - 1]; activeOpponent = leagueState.standings.find(t => t.id === opponentId); startMatchEngine(activeOpponent, false); });
-document.getElementById('play-friendly-btn').addEventListener('click', () => { if ((leagueState.friendlyMatchesPlayed || 0) >= 5) { showToast("Hết lượt đá giao hữu mùa này!"); return; } activeOpponent = leagueState.standings[Math.floor(Math.random() * leagueState.standings.length)]; while (activeOpponent.isUser) { activeOpponent = leagueState.standings[Math.floor(Math.random() * leagueState.standings.length)]; } startMatchEngine(activeOpponent, true); });
+document.getElementById('start-league-match-btn')?.addEventListener('click', () => { const opponentId = leagueState.schedule[leagueState.currentRound - 1]; activeOpponent = leagueState.standings.find(t => t.id === opponentId); startMatchEngine(activeOpponent, false); });
+document.getElementById('play-friendly-btn')?.addEventListener('click', () => { if ((leagueState.friendlyMatchesPlayed || 0) >= 5) { showToast("Hết lượt đá giao hữu mùa này!"); return; } activeOpponent = leagueState.standings[Math.floor(Math.random() * leagueState.standings.length)]; while (activeOpponent.isUser) { activeOpponent = leagueState.standings[Math.floor(Math.random() * leagueState.standings.length)]; } startMatchEngine(activeOpponent, true); });
 
 const finishLeagueRound = async (userScore, botScore, totalEarnings) => {
     showLoading("ĐANG CẬP NHẬT BXH...");
@@ -651,10 +653,8 @@ const finishLeagueRound = async (userScore, botScore, totalEarnings) => {
         }
         myBudget += currentTotalEarnings; updateHeaderDisplay();
         
-        // SINH TIN TỨC DRAMA RANDOM
         if (Math.random() < 0.15) {
-            const isGood = Math.random() > 0.5;
-            if (isGood) { myBudget += 200000; window.pushNews('Nhà tài trợ vui vẻ', 'Lối đá đẹp mắt, nhà tài trợ thưởng nóng €200,000!', true); } 
+            if (Math.random() > 0.5) { myBudget += 200000; window.pushNews('Nhà tài trợ vui vẻ', 'Lối đá đẹp mắt, nhà tài trợ thưởng nóng €200,000!', true); } 
             else { myBudget -= 100000; window.pushNews('Án Phạt Nguội', 'LĐBĐ Việt Nam phạt CLB €100,000 do CĐV ném đồ xuống sân.', false); }
         }
 
@@ -684,11 +684,10 @@ const finishFriendlyMatch = async (totalEarnings) => {
         document.getElementById('match-live').classList.add('hidden'); document.getElementById('season-end-panel').classList.remove('hidden'); document.getElementById('league-table-container').classList.remove('hidden'); showToast("Hoàn tất trận giao hữu!", "success"); renderLeagueView(); 
         
         toggleNavLock(false); if (leagueState.currentRound <= 31) document.getElementById('quick-play-btn').classList.remove('hidden');
-
     } catch (e) { showToast("Lỗi!"); } finally { hideLoading(); }
 };
 
-document.getElementById('start-new-season-btn').addEventListener('click', async () => {
+document.getElementById('start-new-season-btn')?.addEventListener('click', async () => {
     showLoading("THIẾT LẬP MÙA GIẢI MỚI...");
     try {
         let botStandings = leagueState.standings.filter(t => !t.isUser); let relegatedBotIds = botStandings.slice(-2).map(b => b.id); leagueState.standings = leagueState.standings.filter(t => !relegatedBotIds.includes(t.id));
@@ -704,7 +703,7 @@ document.getElementById('start-new-season-btn').addEventListener('click', async 
     } catch(e) { showToast("Lỗi!"); } finally { hideLoading(); }
 });
 
-document.getElementById('quick-play-btn').addEventListener('click', () => {
+document.getElementById('quick-play-btn')?.addEventListener('click', () => {
     if (leagueState.currentRound > 31) { showToast("Mùa giải đã kết thúc! Vui lòng bắt đầu mùa mới.", "warning"); switchView('league'); return; }
     switchView('league'); document.getElementById('dashboard-section').scrollIntoView({ behavior: "smooth" });
 });
