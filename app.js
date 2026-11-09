@@ -199,9 +199,11 @@ function renderSquadList() {
         const stBg = p.stamina >= 80 ? 'bg-green-400' : (p.stamina >= 50 ? 'bg-yellow-400' : 'bg-red-500'); 
         const rarity = getRarityClass(p.ovr);
         
+        // Trong app.js -> renderSquadList()
+        // SỬA w-full THÀNH min-w-[150px]
         tbody.innerHTML += `<tr class="hover:bg-slate-700/50 transition-colors cursor-pointer" onclick="window.openPlayerDetail('${p.id}')">
             <td class="p-3 text-center whitespace-nowrap"><span class="${POS_COLORS[p.pos]} text-white text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-1 rounded w-10 md:w-12 inline-block text-center">${p.pos}</span></td>
-            <td class="p-3 font-medium text-white w-full"><div class="whitespace-nowrap max-w-[120px] md:max-w-[200px] truncate">${p.name}</div></td>
+            <td class="p-3 font-medium text-white min-w-[150px]"><div class="whitespace-nowrap truncate max-w-[120px] md:max-w-[200px]">${p.name}</div></td>
             <td class="p-3 text-center whitespace-nowrap"><div class="flex flex-col items-center gap-1 text-[9px] md:text-[10px] ${stColor}"><span>${p.injury>0?'🚑 Chấn thương':`⚡ ${p.stamina}%`}</span>${p.injury > 0 ? '' : `<div class="w-12 bg-slate-700 h-1 rounded-full overflow-hidden hidden sm:block"><div class="${stBg} h-full" style="width: ${p.stamina}%"></div></div>`}</div></td>
             <td class="p-3 text-center font-bold whitespace-nowrap ${rarity.text}">${p.ovr}</td>
             <td class="p-3 text-center whitespace-nowrap">${statusHtml}</td>
