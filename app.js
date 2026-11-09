@@ -3,21 +3,24 @@ import { showLoading, hideLoading, showToast } from './ui-helpers.js';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-// Global State
+// GLOBAL STATE
 let currentUserId = null; let myClubName = "My Club"; let myBudget = 0; let myFame = 30;
 let myFacilities = { medical: 1, scouting: 1, training: 1, finance: 1, scoutingCooldown: 5, scoutedPlayer: null, medicalSlots: [], trainingSlots: [], pendingUpgrade: null };
 let globalPlayersList = []; let globalPlayersMap = {}; let currentFormation = '4-4-2'; let startingXI = new Array(11).fill(null); 
 let teamPower = { OVR: 0, ATT: 0, MID: 0, DEF: 0 };
 let leagueState = { currentRound: 1, standings: [], schedule: [], friendlyMatchesPlayed: 0, promotedBots: [], pendingBuys: [], pendingSells: [], rankHistory: [] };
 let newsInbox = []; let hasUnreadNews = false; let currentMarketList = []; let currentlyViewingPlayerId = null; let currentSlotToFill = null; let currentItemToApply = null;
-const TABS = ['club', 'squad', 'league', 'news', 'settings'];
+let activeSubView = null;
 
+const TABS = ['club', 'squad', 'league', 'news', 'settings'];
+const POS_COLORS = { 'GK': 'bg-yellow-600', 'DEF': 'bg-blue-600', 'MID': 'bg-green-600', 'FWD': 'bg-red-600' };
+const POS_ORDER = { 'GK': 1, 'DEF': 2, 'MID': 3, 'FWD': 4 };
 window.showToast = showToast; window.showLoading = showLoading; window.hideLoading = hideLoading;
 
 const STORE_ITEMS = [
-    { id: 'item_speed', name: 'Giày Khinh Công', icon: '👟', desc: '+3 Tốc độ (PAC)', price: 500000, type: 'stat', stat: 'PAC', amount: 3 },
-    { id: 'item_shoot', name: 'Bia Đỡ Đạn', icon: '🎯', desc: '+3 Dứt điểm (SHO)', price: 600000, type: 'stat', stat: 'SHO', amount: 3 },
-    { id: 'item_pass', name: 'Băng Đội Trưởng', icon: '🧠', desc: '+3 Chuyền bóng (PAS)', price: 400000, type: 'stat', stat: 'PAS', amount: 3 },
+    { id: 'item_speed', name: 'Giày Khinh Công', icon: '👟', desc: '+3 Tốc độ', price: 500000, type: 'stat', stat: 'PAC', amount: 3 },
+    { id: 'item_shoot', name: 'Bia Đỡ Đạn', icon: '🎯', desc: '+3 Dứt điểm', price: 600000, type: 'stat', stat: 'SHO', amount: 3 },
+    { id: 'item_pass', name: 'Băng Đội Trưởng', icon: '🧠', desc: '+3 Chuyền bóng', price: 400000, type: 'stat', stat: 'PAS', amount: 3 },
     { id: 'item_def', name: 'Tạ Chân', icon: '🛡️', desc: '+3 Phòng ngự, +2 Thể chất', price: 500000, type: 'stat_multi', stats: {DEF: 3, PHY: 2} },
     { id: 'item_gacha', name: 'Lò Đào Tạo Trẻ', icon: '⭐', desc: 'Tuyển 1 tài năng (OVR 60-75)', price: 1000000, type: 'gacha' }
 ];
@@ -36,7 +39,6 @@ function updateHeaderDisplay() {
     document.getElementById('header-club-name').textContent = myClubName;
 }
 
-let activeSubView = null;
 function switchView(v) {
     window.closeSubView(false);
     TABS.forEach(id => { 
@@ -47,9 +49,10 @@ function switchView(v) {
     document.getElementById(`view-${v}`).classList.remove('hidden'); 
     const aNav = document.getElementById(`nav-${v}`); if(aNav) aNav.className = "block px-4 py-3 bg-green-900/40 text-green-400 font-medium rounded-lg border border-green-900/50";
     const aMob = document.getElementById(`nav-${v}-mob`); if(aMob) aMob.className = "flex flex-col items-center text-green-400 transition-colors";
+    
     if(v === 'squad') document.getElementById('squad-count').textContent = globalPlayersList.length;
     if(v === 'league') renderLeagueView(); 
-    if(v === 'news') { renderNewsView(); markNewsRead(); }
+    if(v === 'news') { renderNewsView(); hasUnreadNews = false; checkUnreadNews(); }
     if(v === 'settings') document.getElementById('setting-club-name').value = myClubName;
 }
 
@@ -108,15 +111,14 @@ const renderNewsView = () => {
         c.innerHTML += `<div class="bg-slate-800 p-4 rounded-xl border ${borderColor} shadow flex gap-3"><div class="text-2xl">${icon}</div><div><div class="flex justify-between items-center mb-1"><h4 class="font-bold text-white text-sm">${n.title}</h4><span class="text-[10px] text-slate-400">${n.time}</span></div><p class="text-xs text-slate-300 leading-relaxed">${n.message}</p></div></div>`;
     });
 };
-const markNewsRead = () => { hasUnreadNews = false; checkUnreadNews(); };
-document.getElementById('clear-news-btn').addEventListener('click', () => { newsInbox = []; renderNewsView(); checkUnreadNews(); });
+document.getElementById('clear-news-btn').addEventListener('click', () => { newsInbox = []; renderNewsView(); hasUnreadNews = false; checkUnreadNews(); });
 
 let isLogin = true; 
 document.getElementById('toggle-mode-btn').addEventListener('click', (e) => { e.preventDefault(); isLogin = !isLogin; document.getElementById('auth-submit-btn').textContent = isLogin ? "Đăng Nhập" : "Đăng Ký"; document.getElementById('auth-toggle-text').textContent = isLogin ? "Chưa có tài khoản?" : "Đã có tài khoản?"; });
 document.getElementById('auth-form').addEventListener('submit', async (e) => { 
-    e.preventDefault(); const btn = document.getElementById('auth-submit-btn'); btn.disabled = true; const errDiv = document.getElementById('auth-error'); errDiv.classList.add('hidden'); showLoading(isLogin ? "ĐANG XÁC THỰC..." : "ĐANG TẠO TÀI KHOẢN...");
+    e.preventDefault(); document.getElementById('auth-submit-btn').disabled = true; document.getElementById('auth-error').classList.add('hidden'); showLoading(isLogin ? "ĐANG XÁC THỰC..." : "ĐANG TẠO TÀI KHOẢN...");
     try { if(isLogin) await signInWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value); else await createUserWithEmailAndPassword(auth, document.getElementById('email').value, document.getElementById('password').value); } 
-    catch(err) { errDiv.textContent = err.message; errDiv.classList.remove('hidden'); btn.disabled = false; } finally { hideLoading(); }
+    catch(err) { document.getElementById('auth-error').textContent = err.message; document.getElementById('auth-error').classList.remove('hidden'); document.getElementById('auth-submit-btn').disabled = false; } finally { hideLoading(); }
 });
 document.getElementById('logout-btn').addEventListener('click', () => { showLoading("ĐANG ĐĂNG XUẤT..."); signOut(auth).then(() => { location.reload(); }); });
 
@@ -136,6 +138,7 @@ const loadGameData = async (uid) => {
             myFacilities = profileData.facilities || { medical: 1, scouting: 1, training: 1, finance: 1, scoutingCooldown: 5, scoutedPlayer: null, medicalSlots: [], trainingSlots: [], pendingUpgrade: null };
             if(!myFacilities.medicalSlots) myFacilities.medicalSlots = []; if(!myFacilities.trainingSlots) myFacilities.trainingSlots = [];
             newsInbox = profileData.news || []; updateHeaderDisplay();
+            
             const pSnap = await getDocs(collection(db, 'artifacts', appId, 'users', uid, 'players')); globalPlayersList = []; globalPlayersMap = {};
             pSnap.forEach(doc => { 
                 const d = doc.data(); d.id = doc.id; d.itemsUsed = d.itemsUsed || 0; 
@@ -147,8 +150,8 @@ const loadGameData = async (uid) => {
             if(tacSnap.exists()) { const tData = tacSnap.data(); currentFormation = tData.formation || '4-4-2'; document.getElementById('formation-select').value = currentFormation; startingXI = tData.startingXI || new Array(11).fill(null); } 
             else if(globalPlayersList.length >= 11) {
                 startingXI = new Array(11).fill(null); const layout = currentFormation.split('-').map(Number); layout.reverse(); layout.push(1);
-                const posNames = ['FWD', 'MID', 'DEF', 'GK']; let expectedPositions = []; layout.forEach((count, idx) => { for(let i=0; i<count; i++) expectedPositions.push(posNames[idx]); });
-                let usedIds = new Set(); expectedPositions.forEach((reqPos, index) => { let best = globalPlayersList.filter(p => p.pos === reqPos && !usedIds.has(p.id)).sort((a,b)=>b.ovr - a.ovr)[0]; if(best) { startingXI[index] = best.id; usedIds.add(best.id); } });
+                let expPos = []; layout.forEach((count, idx) => { for(let i=0; i<count; i++) expPos.push(['FWD', 'MID', 'DEF', 'GK'][idx]); });
+                let usedIds = new Set(); expPos.forEach((reqPos, index) => { let best = globalPlayersList.filter(p => p.pos === reqPos && !usedIds.has(p.id)).sort((a,b)=>b.ovr - a.ovr)[0]; if(best) { startingXI[index] = best.id; usedIds.add(best.id); } });
                 startingXI.forEach((val, index) => { if(!val) { let best = globalPlayersList.filter(p => !usedIds.has(p.id)).sort((a,b)=>b.ovr - a.ovr)[0]; if(best) { startingXI[index] = best.id; usedIds.add(best.id); } } });
             }
             calcTeamPower();
@@ -183,11 +186,10 @@ const initLeagueData = async (uid, overrideName = null) => {
 
 function renderSquadList() {
     const tbody = document.getElementById('squad-list-body'); tbody.innerHTML = '';
-    const posColors = { GK: 'bg-yellow-600', DEF: 'bg-blue-600', MID: 'bg-green-600', FWD: 'bg-red-600' };
-    [...globalPlayersList].sort((a, b) => ({'GK':1,'DEF':2,'MID':3,'FWD':4}[a.pos] - {'GK':1,'DEF':2,'MID':3,'FWD':4}[b.pos] || b.ovr - a.ovr)).forEach(p => {
+    [...globalPlayersList].sort((a, b) => (POS_ORDER[a.pos] - POS_ORDER[b.pos] || b.ovr - a.ovr)).forEach(p => {
         let statusHtml = p.isListed ? '<span class="text-[10px] md:text-xs bg-red-900 text-red-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">Chờ bán</span>' : (myFacilities.medicalSlots.includes(p.id) ? '<span class="text-[10px] md:text-xs bg-yellow-900 text-yellow-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">🏥 Y tế</span>' : (myFacilities.trainingSlots.includes(p.id) ? '<span class="text-[10px] md:text-xs bg-blue-900 text-blue-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">🏋️ Tập</span>' : (startingXI.includes(p.id) ? '<span class="text-[10px] md:text-xs bg-green-900 text-green-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">⚽ Sân</span>' : '<span class="text-[10px] md:text-xs bg-slate-700 text-slate-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">🪑 Dự bị</span>')));
         const stColor = p.injury > 0 ? 'text-red-500 font-bold' : (p.stamina >= 80 ? 'text-green-400' : (p.stamina >= 50 ? 'text-yellow-400' : 'text-red-400')); const stBg = p.stamina >= 80 ? 'bg-green-400' : (p.stamina >= 50 ? 'bg-yellow-400' : 'bg-red-500'); const rarity = getRarityClass(p.ovr);
-        tbody.innerHTML += `<tr class="hover:bg-slate-700/50 transition-colors cursor-pointer" onclick="window.openPlayerDetail('${p.id}')"><td class="p-3 text-center whitespace-nowrap"><span class="${posColors[p.pos]} text-white text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-1 rounded w-10 md:w-12 inline-block text-center">${p.pos}</span></td><td class="p-3 font-medium text-white w-full"><div class="mb-1 whitespace-nowrap max-w-[120px] md:max-w-[200px] truncate">${p.name}</div><div class="flex items-center gap-1 md:gap-2 text-[9px] md:text-[10px] ${stColor}"><span>${p.injury>0?'🚑 Chấn thương':`⚡ ${p.stamina}%`}</span>${p.injury > 0 ? '' : `<div class="w-12 md:w-16 bg-slate-700 h-1 md:h-1.5 rounded-full overflow-hidden hidden sm:block"><div class="${stBg} h-full" style="width: ${p.stamina}%"></div></div>`}</div></td><td class="p-3 text-center font-bold whitespace-nowrap ${rarity.text}">${p.ovr}</td><td class="p-3 text-center whitespace-nowrap">${statusHtml}</td><td class="p-3 text-right text-yellow-400 whitespace-nowrap">€${(p.value || p.ovr*100000).toLocaleString()}</td></tr>`;
+        tbody.innerHTML += `<tr class="hover:bg-slate-700/50 transition-colors cursor-pointer" onclick="window.openPlayerDetail('${p.id}')"><td class="p-3 text-center whitespace-nowrap"><span class="${POS_COLORS[p.pos]} text-white text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-1 rounded w-10 md:w-12 inline-block text-center">${p.pos}</span></td><td class="p-3 font-medium text-white w-full"><div class="mb-1 whitespace-nowrap max-w-[120px] md:max-w-[200px] truncate">${p.name}</div><div class="flex items-center gap-1 md:gap-2 text-[9px] md:text-[10px] ${stColor}"><span>${p.injury>0?'🚑 Chấn thương':`⚡ ${p.stamina}%`}</span>${p.injury > 0 ? '' : `<div class="w-12 md:w-16 bg-slate-700 h-1 md:h-1.5 rounded-full overflow-hidden hidden sm:block"><div class="${stBg} h-full" style="width: ${p.stamina}%"></div></div>`}</div></td><td class="p-3 text-center font-bold whitespace-nowrap ${rarity.text}">${p.ovr}</td><td class="p-3 text-center whitespace-nowrap">${statusHtml}</td><td class="p-3 text-right text-yellow-400 whitespace-nowrap">€${(p.value || p.ovr*100000).toLocaleString()}</td></tr>`;
     });
 }
 
@@ -195,7 +197,7 @@ window.openPlayerDetail = (playerId) => {
     const p = globalPlayersMap[playerId]; if(!p) return; currentlyViewingPlayerId = playerId; const rarity = getRarityClass(p.ovr);
     const av = document.querySelector('#player-detail-modal .rounded-full.mx-auto'); if (av) { av.innerHTML = `<img src="https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(p.name.replace(/⭐/g, '').trim())}&backgroundColor=transparent" class="w-full h-full object-cover bg-slate-200" />`; av.className = `w-20 h-20 md:w-24 md:h-24 border-4 rounded-full mx-auto mb-3 flex items-center justify-center overflow-hidden shadow-lg transition-all ${rarity.border} ${rarity.bg}`; }
     document.getElementById('detail-name').textContent = p.name; document.getElementById('detail-name').className = `text-xl md:text-2xl font-bold mb-1 ${rarity.text}`;
-    document.getElementById('detail-pos').textContent = p.pos; document.getElementById('detail-pos').className = `${{ GK: 'bg-yellow-600', DEF: 'bg-blue-600', MID: 'bg-green-600', FWD: 'bg-red-600' }[p.pos]} text-white text-[10px] md:text-xs font-bold px-2 py-1 rounded`; 
+    document.getElementById('detail-pos').textContent = p.pos; document.getElementById('detail-pos').className = `${POS_COLORS[p.pos]} text-white text-[10px] md:text-xs font-bold px-2 py-1 rounded`; 
     document.getElementById('detail-ovr').textContent = p.ovr; document.getElementById('detail-ovr').className = `text-lg md:text-xl font-bold ${rarity.text}`; document.getElementById('detail-items-used').textContent = p.itemsUsed || 0;
     ['pac','sho','pas','dri','def','phy'].forEach(s => { const S = s.toUpperCase(); const total = p.stats[S] || 0; const bonus = p.bonusStats[S] || 0; const base = total - bonus; const el = document.getElementById(`detail-${s}`); if (bonus > 0) el.innerHTML = `${base} <span class="text-green-400 font-bold ml-1">+${bonus}</span>`; else el.textContent = total; });
     document.getElementById('detail-value').textContent = `€${(p.value || p.ovr*100000).toLocaleString()}`;
@@ -256,7 +258,7 @@ window.openBenchSelect = (slotIndex, expectedPos) => {
     [...globalPlayersList].sort((a, b) => { if (a.pos === expectedPos && b.pos !== expectedPos) return -1; if (a.pos !== expectedPos && b.pos === expectedPos) return 1; return b.ovr - a.ovr; }).forEach(p => {
         if (startingXI.includes(p.id) && startingXI[slotIndex] !== p.id) return;
         const isCurrent = startingXI[slotIndex] === p.id; const rarity = getRarityClass(p.ovr);
-        container.innerHTML += `<div onclick="${p.injury > 0 ? `window.showToast('Cầu thủ đang chấn thương!')` : `window.assignPlayerToSlot('${p.id}')`}" class="flex justify-between items-center p-2 md:p-3 hover:bg-slate-700/50 border-b border-slate-700/50 cursor-pointer rounded ${isCurrent ? 'bg-green-900/30' : (p.injury > 0 ? 'opacity-50' : '')}"><div class="flex items-center gap-2 md:gap-3"><span class="${{ GK: 'bg-yellow-600', DEF: 'bg-blue-600', MID: 'bg-green-600', FWD: 'bg-red-600' }[p.pos]} text-white text-[9px] md:text-[10px] font-bold px-1 md:px-2 py-0.5 rounded w-8 md:w-10 text-center">${p.pos}</span><div class="flex flex-col"><span class="text-white text-xs md:text-sm ${isCurrent ? 'font-bold' : ''}">${p.name}</span><span class="text-[9px] md:text-[10px] ${p.injury > 0 ? 'text-red-500 font-bold' : (p.stamina >= 80 ? 'text-green-400' : 'text-yellow-400')}">${p.injury > 0 ? '🚑 Chấn thương' : `⚡ ${p.stamina}%`}</span></div></div><span class="font-bold text-sm md:text-base ${rarity.text}">${p.ovr}</span></div>`;
+        container.innerHTML += `<div onclick="${p.injury > 0 ? `window.showToast('Cầu thủ đang chấn thương!')` : `window.assignPlayerToSlot('${p.id}')`}" class="flex justify-between items-center p-2 md:p-3 hover:bg-slate-700/50 border-b border-slate-700/50 cursor-pointer rounded ${isCurrent ? 'bg-green-900/30' : (p.injury > 0 ? 'opacity-50' : '')}"><div class="flex items-center gap-2 md:gap-3"><span class="${POS_COLORS[p.pos]} text-white text-[9px] md:text-[10px] font-bold px-1 md:px-2 py-0.5 rounded w-8 md:w-10 text-center">${p.pos}</span><div class="flex flex-col"><span class="text-white text-xs md:text-sm ${isCurrent ? 'font-bold' : ''}">${p.name}</span><span class="text-[9px] md:text-[10px] ${p.injury > 0 ? 'text-red-500 font-bold' : (p.stamina >= 80 ? 'text-green-400' : 'text-yellow-400')}">${p.injury > 0 ? '🚑 Chấn thương' : `⚡ ${p.stamina}%`}</span></div></div><span class="font-bold text-sm md:text-base ${rarity.text}">${p.ovr}</span></div>`;
     });
     document.getElementById('select-player-modal').classList.remove('hidden');
 };
@@ -274,10 +276,11 @@ document.getElementById('tab-store').addEventListener('click', () => { document.
 
 function generateMarketPlayers() {
     currentMarketList = []; for(let i=0; i<8; i++) { 
-        const isStar = Math.random() > 0.8; const ovr = isStar ? Math.floor(Math.random()*15)+80 : Math.floor(Math.random()*20)+50; 
-        currentMarketList.push({ id: 'market_' + Date.now() + i, name: generatePlayerName(isStar), pos: POSITIONS[Math.floor(Math.random()*POSITIONS.length)], ovr: ovr, value: ovr * (isStar ? 150000 : 80000), stats: { PAC: ovr, SHO: ovr, PAS: ovr, DRI: ovr, DEF: ovr, PHY: ovr }, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, stamina: 100, injury: 0, isListed: false, itemsUsed: 0 });
+        const isStar = Math.random() > 0.8; const pos = POSITIONS[Math.floor(Math.random()*POSITIONS.length)]; 
+        const ovr = isStar ? Math.floor(Math.random()*15)+80 : Math.floor(Math.random()*20)+50; const val = ovr * (isStar ? 150000 : 80000); let stats = { PAC: ovr, SHO: ovr, PAS: ovr, DRI: ovr, DEF: ovr, PHY: ovr };
+        currentMarketList.push({ id: 'market_' + Date.now() + i, name: generatePlayerName(isStar), pos: pos, ovr: ovr, value: val, stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, stamina: 100, injury: 0, isListed: false, itemsUsed: 0 });
     }
-    currentMarketList.sort((a, b) => {'GK':1,'DEF':2,'MID':3,'FWD':4}[a.pos] - {'GK':1,'DEF':2,'MID':3,'FWD':4}[b.pos] || b.ovr - a.ovr);
+    currentMarketList.sort((a, b) => POS_ORDER[a.pos] - POS_ORDER[b.pos] || b.ovr - a.ovr);
 }
 
 function renderTransferMarket() {
@@ -285,7 +288,7 @@ function renderTransferMarket() {
     const tbody = document.getElementById('market-list-body'); tbody.innerHTML = '';
     currentMarketList.forEach(p => {
         let isPending = leagueState.pendingBuys?.find(b => b.marketId === p.id); const rarity = getRarityClass(p.ovr);
-        tbody.innerHTML += `<tr class="hover:bg-slate-700/50 transition-colors"><td class="p-3 text-center whitespace-nowrap"><span class="${{ GK: 'bg-yellow-600', DEF: 'bg-blue-600', MID: 'bg-green-600', FWD: 'bg-red-600' }[p.pos]} text-white text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-1 rounded w-10 md:w-12 inline-block text-center">${p.pos}</span></td><td class="p-3 font-medium text-white w-full"><div class="whitespace-nowrap">${p.name} ${p.ovr >= 85 ? '<span class="text-[9px] text-yellow-400 ml-1">(Fame > 60)</span>' : ''}</div></td><td class="p-3 text-center font-bold whitespace-nowrap ${rarity.text}">${p.ovr}</td><td class="p-3 text-right text-yellow-400 whitespace-nowrap">€${p.value.toLocaleString()}</td><td class="p-3 text-center whitespace-nowrap">${isPending ? `<button disabled class="bg-slate-700 text-slate-400 text-[10px] md:text-xs px-2 md:px-3 py-1.5 rounded font-bold cursor-not-allowed">Chờ</button>` : `<button onclick="window.makeBuyOffer('${p.id}')" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] md:text-xs px-2 md:px-3 py-1.5 rounded font-bold shadow transition">Mua</button>`}</td></tr>`;
+        tbody.innerHTML += `<tr class="hover:bg-slate-700/50 transition-colors"><td class="p-3 text-center whitespace-nowrap"><span class="${POS_COLORS[p.pos]} text-white text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-1 rounded w-10 md:w-12 inline-block text-center">${p.pos}</span></td><td class="p-3 font-medium text-white w-full"><div class="whitespace-nowrap">${p.name} ${p.ovr >= 85 ? '<span class="text-[9px] text-yellow-400 ml-1">(Fame > 60)</span>' : ''}</div></td><td class="p-3 text-center font-bold whitespace-nowrap ${rarity.text}">${p.ovr}</td><td class="p-3 text-right text-yellow-400 whitespace-nowrap">€${p.value.toLocaleString()}</td><td class="p-3 text-center whitespace-nowrap">${isPending ? `<button disabled class="bg-slate-700 text-slate-400 text-[10px] md:text-xs px-2 md:px-3 py-1.5 rounded font-bold cursor-not-allowed">Chờ</button>` : `<button onclick="window.makeBuyOffer('${p.id}')" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] md:text-xs px-2 md:px-3 py-1.5 rounded font-bold shadow transition">Mua</button>`}</td></tr>`;
     });
 }
 
@@ -349,7 +352,7 @@ window.buyItem = async (itemId) => {
                 const ovr = Math.floor(Math.random() * 16) + 60; let stats = { PAC: ovr+2, SHO: ovr-2, PAS: ovr+1, DRI: ovr, DEF: ovr, PHY: ovr }; 
                 const newPlayerRef = doc(collection(db, 'artifacts', appId, 'users', currentUserId, 'players')); const playerData = { name: generatePlayerName(false), pos: POSITIONS[Math.floor(Math.random() * POSITIONS.length)], ovr: recalculateOVR(POSITIONS[0], stats), stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, stamina: 100, injury: 0, value: ovr * 70000, isListed: false, itemsUsed: 0 };
                 await setDoc(newPlayerRef, playerData); playerData.id = newPlayerRef.id; globalPlayersList.push(playerData); globalPlayersMap[playerData.id] = playerData;
-                showToast(`Đã chiêu mộ ${playerData.name} (OVR ${playerData.ovr})!`, 'success');
+                showToast(`Đã chiêu mộ ${playerData.name}!`, 'success');
             } catch (e) { showToast("Lỗi!"); } finally { hideLoading(); }
         }
     } else {
@@ -377,7 +380,6 @@ window.applyItemToPlayer = async (playerId) => {
     }
 };
 
-// ================= MODULE 6.5: CƠ SỞ HẠ TẦNG =================
 window.renderFacilities = function() {
     const container = document.getElementById('facilities-container'); if(!container) return; container.innerHTML = '';
     
@@ -412,7 +414,7 @@ window.renderFacilities = function() {
         }
         container.innerHTML += `<div class="bg-slate-800 border border-slate-700 rounded-xl p-4 shadow-lg flex flex-col justify-between hover:border-blue-500/50 transition-colors"><div class="mb-4"><div class="flex justify-between items-center mb-2"><h3 class="text-lg font-bold text-white">${f.name}</h3><span class="bg-blue-900 text-blue-300 text-[10px] font-bold px-2 py-1 rounded">Lv. ${f.level}</span></div><p class="text-slate-400 text-xs md:text-sm">${f.desc}</p>${f.slotsHtml}</div><div>${actionHtml}</div></div>`;
     });
-}
+};
 
 window.upgradeFacility = async (facId, cost, time) => {
     if(myBudget < cost) { showToast("Không đủ ngân sách!", "error"); return; }
@@ -609,7 +611,7 @@ const startMatchEngine = (opponent, isFriendly) => {
             let financeBonus = Math.floor(income * (myFacilities.finance * 0.05));
             let totalEarnings = matchFee + income + financeBonus;
             
-            logContainer.innerHTML += `<div class="mt-3 mb-2 bg-slate-800 border border-yellow-500/50 p-3 rounded-xl text-xs sm:text-sm shadow-lg"><div class="font-bold text-yellow-400 mb-2 border-b border-slate-700 pb-1 text-center">📊 TÀI CHÍNH TRẬN ĐẤU</div><div class="flex justify-between text-slate-300 py-1"><span>Phí tổ chức:</span><span class="text-red-400">${matchFee < 0 ? '- €50,000' : 'Miễn phí'}</span></div>${sponsorMoney ? `<div class="flex justify-between text-slate-300 py-1"><span>Tài trợ:</span><span class="text-green-400">+ €${sponsorMoney.toLocaleString()}</span></div>` : ''}${perfBonus ? `<div class="flex justify-between text-slate-300 py-1"><span>Thành tích:</span><span class="text-green-400">+ €${perfBonus.toLocaleString()}</span></div>` : ''}${cleanSheet ? `<div class="flex justify-between text-slate-300 py-1"><span>Sạch lưới:</span><span class="text-green-400">+ €${cleanSheet.toLocaleString()}</span></div>` : ''}${bigWin ? `<div class="flex justify-between text-slate-300 py-1"><span>Thắng đậm:</span><span class="text-green-400">+ €${bigWin.toLocaleString()}</span></div>` : ''}<div class="flex justify-between font-bold mt-2 pt-2 border-t border-slate-700 text-sm"><span>Tổng nhận (+€${financeBonus.toLocaleString()} Từ TT Tài chính):</span><span class="${totalEarnings > 0 ? 'text-green-400' : 'text-red-400'}">${totalEarnings > 0 ? '+' : ''} €${totalEarnings.toLocaleString()}</span></div></div>`;
+            logContainer.innerHTML += `<div class="mt-3 mb-2 bg-slate-800 border border-yellow-500/50 p-3 rounded-xl text-xs sm:text-sm shadow-lg"><div class="font-bold text-yellow-400 mb-2 border-b border-slate-700 pb-1 text-center">📊 TÀI CHÍNH TRẬN ĐẤU</div><div class="flex justify-between text-slate-300 py-1"><span>Phí tổ chức:</span><span class="text-red-400">${matchFee < 0 ? '- €50,000' : 'Miễn phí'}</span></div>${sponsorMoney ? `<div class="flex justify-between text-slate-300 py-1"><span>Tài trợ giao hữu:</span><span class="text-green-400">+ €${sponsorMoney.toLocaleString()}</span></div>` : ''}${perfBonus ? `<div class="flex justify-between text-slate-300 py-1"><span>Thưởng thành tích:</span><span class="text-green-400">+ €${perfBonus.toLocaleString()}</span></div>` : ''}${cleanSheet ? `<div class="flex justify-between text-slate-300 py-1"><span>Sạch lưới:</span><span class="text-green-400">+ €${cleanSheet.toLocaleString()}</span></div>` : ''}${bigWin ? `<div class="flex justify-between text-slate-300 py-1"><span>Thắng đậm:</span><span class="text-green-400">+ €${bigWin.toLocaleString()}</span></div>` : ''}<div class="flex justify-between font-bold mt-2 pt-2 border-t border-slate-700 text-sm"><span>Tổng nhận (+€${financeBonus.toLocaleString()} Từ TT Tài chính):</span><span class="${totalEarnings > 0 ? 'text-green-400' : 'text-red-400'}">${totalEarnings > 0 ? '+' : ''} €${totalEarnings.toLocaleString()}</span></div></div>`;
             logContainer.scrollTop = logContainer.scrollHeight;
             setTimeout(() => { const liveMatchView = document.getElementById('match-live'); liveMatchView.scrollTop = liveMatchView.scrollHeight; }, 300);
 
@@ -649,11 +651,11 @@ const finishLeagueRound = async (userScore, botScore, totalEarnings) => {
         }
         myBudget += currentTotalEarnings; updateHeaderDisplay();
         
-        // SINH TIN TỨC DRAMA RANDOM MỖI VÒNG ĐẤU
+        // SINH TIN TỨC DRAMA RANDOM
         if (Math.random() < 0.15) {
             const isGood = Math.random() > 0.5;
-            if (isGood) { myBudget += 200000; window.pushNews('Nhà tài trợ vui vẻ', 'Do lối đá đẹp mắt, nhà tài trợ quyết định thưởng nóng cho toàn đội €200,000!', true); } 
-            else { myBudget -= 100000; window.pushNews('Án Phạt Nguội', 'LĐBĐ Việt Nam phạt CLB €100,000 do CĐV ném chai nước xuống sân ở vòng đấu trước.', false); }
+            if (isGood) { myBudget += 200000; window.pushNews('Nhà tài trợ vui vẻ', 'Lối đá đẹp mắt, nhà tài trợ thưởng nóng €200,000!', true); } 
+            else { myBudget -= 100000; window.pushNews('Án Phạt Nguội', 'LĐBĐ Việt Nam phạt CLB €100,000 do CĐV ném đồ xuống sân.', false); }
         }
 
         const batch = writeBatch(db);
@@ -665,8 +667,7 @@ const finishLeagueRound = async (userScore, botScore, totalEarnings) => {
         if(endSeasonMessage) showToast(endSeasonMessage, "success"); else showToast("Đã lưu kết quả vòng đấu!", "success");
         document.getElementById('match-live').classList.add('hidden'); document.getElementById('league-table-container').classList.remove('hidden'); renderLeagueView();
         
-        toggleNavLock(false);
-        if (leagueState.currentRound <= 31) document.getElementById('quick-play-btn').classList.remove('hidden');
+        toggleNavLock(false); if (leagueState.currentRound <= 31) document.getElementById('quick-play-btn').classList.remove('hidden');
 
     } catch (e) { showToast("Lỗi lưu kết quả!"); } finally { hideLoading(); }
 };
@@ -682,8 +683,7 @@ const finishFriendlyMatch = async (totalEarnings) => {
         await batch.commit();
         document.getElementById('match-live').classList.add('hidden'); document.getElementById('season-end-panel').classList.remove('hidden'); document.getElementById('league-table-container').classList.remove('hidden'); showToast("Hoàn tất trận giao hữu!", "success"); renderLeagueView(); 
         
-        toggleNavLock(false);
-        if (leagueState.currentRound <= 31) document.getElementById('quick-play-btn').classList.remove('hidden');
+        toggleNavLock(false); if (leagueState.currentRound <= 31) document.getElementById('quick-play-btn').classList.remove('hidden');
 
     } catch (e) { showToast("Lỗi!"); } finally { hideLoading(); }
 };
@@ -706,5 +706,5 @@ document.getElementById('start-new-season-btn').addEventListener('click', async 
 
 document.getElementById('quick-play-btn').addEventListener('click', () => {
     if (leagueState.currentRound > 31) { showToast("Mùa giải đã kết thúc! Vui lòng bắt đầu mùa mới.", "warning"); switchView('league'); return; }
-    switchView('league');
+    switchView('league'); document.getElementById('dashboard-section').scrollIntoView({ behavior: "smooth" });
 });
