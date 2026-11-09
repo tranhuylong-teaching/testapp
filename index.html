@@ -7,14 +7,29 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
     <script>
-        tailwind.config = { theme: { extend: { fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['ui-monospace', 'monospace'] } } } }
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: { sans: ['Inter', 'sans-serif'], mono: ['ui-monospace', 'monospace'] },
+                    colors: { pitch: { dark: '#0f172a', green: '#14532d', accent: '#22c55e' } }
+                }
+            }
+        }
     </script>
     <style>
         body { background: radial-gradient(circle at center, #14532d 0%, #0f172a 100%); background-attachment: fixed; touch-action: manipulation; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; } ::-webkit-scrollbar-track { background: #0f172a; } ::-webkit-scrollbar-thumb { background: #22c55e; border-radius: 4px; }
-        .hide-scrollbar { scrollbar-width: none; } .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .football-pitch { background-color: #166534; background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px); background-size: 100% 20%, 20% 100%; border: 2px solid rgba(255,255,255,0.3); }
-        @keyframes fade-in-up { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } } .animate-log { animation: fade-in-up 0.3s ease-out forwards; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #22c55e; border-radius: 4px; }
+        .hide-scrollbar { scrollbar-width: none; }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .football-pitch {
+            background-color: #166534;
+            background-image: linear-gradient(rgba(255,255,255,0.1) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.1) 1px, transparent 1px);
+            background-size: 100% 20%, 20% 100%; border: 2px solid rgba(255,255,255,0.3);
+        }
+        @keyframes fade-in-up { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } }
+        .animate-log { animation: fade-in-up 0.3s ease-out forwards; }
         .rank-gold { border-left: 4px solid #fbbf24; background: linear-gradient(90deg, rgba(251,191,36,0.1) 0%, transparent 100%); }
         .rank-silver { border-left: 4px solid #94a3b8; background: linear-gradient(90deg, rgba(148,163,184,0.1) 0%, transparent 100%); }
         .rank-bronze { border-left: 4px solid #b45309; background: linear-gradient(90deg, rgba(180,83,9,0.1) 0%, transparent 100%); }
@@ -66,6 +81,8 @@
 
             <div class="p-4 md:p-8 pb-28 md:pb-8">
                 <div id="view-overview" class="space-y-6"></div>
+                
+                <!-- SQUAD VIEW FIXED -->
                 <div id="view-squad" class="hidden space-y-6">
                     <div class="bg-slate-800/80 rounded-2xl border border-slate-700/50 overflow-hidden shadow-xl">
                         <div class="p-4 md:p-6 border-b border-slate-700/50 flex justify-between items-center bg-slate-800">
@@ -73,14 +90,14 @@
                             <span class="text-xs md:text-sm text-slate-400 italic hidden sm:block">Nhấn vào cầu thủ để xem chi tiết</span>
                         </div>
                         <div class="overflow-x-auto hide-scrollbar">
-                            <table class="w-full text-left border-collapse min-w-max">
+                            <table class="w-full text-left border-collapse min-w-[500px]">
                                 <thead>
-                                    <tr class="bg-slate-900/50 text-slate-400 text-[10px] md:text-xs uppercase">
-                                        <th class="p-3 text-center whitespace-nowrap">Vị trí</th>
-                                        <th class="p-3 w-full">Cầu thủ</th>
-                                        <th class="p-3 text-center whitespace-nowrap">OVR</th>
-                                        <th class="p-3 text-center whitespace-nowrap">Trạng thái</th>
-                                        <th class="p-3 text-right whitespace-nowrap">Giá trị</th>
+                                    <tr class="bg-slate-900/50 text-slate-400 text-xs md:text-sm uppercase">
+                                        <th class="p-3 md:p-4 pl-4 md:pl-6 text-center w-16 md:w-20 whitespace-nowrap">Vị trí</th>
+                                        <th class="p-3 md:p-4">Cầu thủ</th>
+                                        <th class="p-3 md:p-4 text-center w-16 md:w-24 whitespace-nowrap">OVR</th>
+                                        <th class="p-3 md:p-4 text-center w-24 md:w-32 whitespace-nowrap">Trạng thái</th>
+                                        <th class="p-3 md:p-4 text-right pr-4 md:pr-6 w-24 md:w-32 whitespace-nowrap">Giá trị</th>
                                     </tr>
                                 </thead>
                                 <tbody id="squad-list-body" class="divide-y divide-slate-700/50 text-xs md:text-sm"></tbody>
@@ -88,7 +105,7 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div id="view-tactics" class="hidden space-y-6">
                     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-slate-800 p-4 rounded-xl border border-slate-700">
                         <div><h3 class="text-lg md:text-xl font-bold text-white mb-1">Sơ đồ Chiến thuật</h3></div>
@@ -98,7 +115,6 @@
                         </div>
                     </div>
                     <div class="flex flex-col lg:flex-row gap-6">
-                        <!-- THU NHỎ CHIỀU CAO SÂN BÓNG TRÊN MOBILE BẰNG h-96 -->
                         <div class="w-full lg:w-2/3"><div class="football-pitch relative w-full h-[380px] sm:h-[500px] md:aspect-[4/3] rounded-xl mx-auto overflow-hidden py-2 sm:py-6"><div id="pitch-container" class="z-10 flex flex-col justify-between h-full w-full px-2 sm:px-4"></div></div></div>
                         <div class="w-full lg:w-1/3 space-y-4"><div class="bg-slate-800 p-5 rounded-xl border border-slate-700"><h4 class="font-bold flex justify-between mb-4">OVR Đội <span id="team-ovr" class="text-green-400">0</span></h4><div class="text-xs text-slate-400 italic">Bấm vào bất kỳ vị trí nào trên sân cỏ để thay đổi cầu thủ.</div></div></div>
                     </div>
@@ -111,29 +127,39 @@
                     <div id="league-table-container" class="bg-slate-800/80 rounded-2xl border border-slate-700/50 overflow-hidden shadow-xl mt-6"><div class="overflow-x-auto"><table class="w-full text-left border-collapse text-xs md:text-sm min-w-[500px]"><thead><tr class="bg-slate-900/50 text-slate-400 uppercase"><th class="p-2 md:p-3 pl-4 md:pl-6 w-12 md:w-16">#</th><th class="p-2 md:p-3">Câu Lạc Bộ</th><th class="p-2 md:p-3 text-center w-8 md:w-12">Tr</th><th class="p-2 md:p-3 text-center w-8 md:w-12">T</th><th class="p-2 md:p-3 text-center w-8 md:w-12">H</th><th class="p-2 md:p-3 text-center w-8 md:w-12">B</th><th class="p-2 md:p-3 text-center w-12 md:w-16">HS</th><th class="p-2 md:p-3 text-center w-12 md:w-16 font-bold text-white">Đ</th></tr></thead><tbody id="league-table-body" class="divide-y divide-slate-700/30"></tbody></table></div></div>
                 </div>
 
+                <!-- TRANSFER MARKET FIXED -->
                 <div id="view-transfer" class="hidden space-y-6">
-                    <div class="flex flex-wrap gap-2 md:gap-4 border-b border-slate-700 pb-2 text-sm md:text-base"><button id="tab-transfer-market" class="px-3 py-2 font-bold text-green-400 border-b-2 border-green-400 whitespace-nowrap">Thị trường Mua</button><button id="tab-transfer-offers" class="px-3 py-2 font-medium text-slate-400 hover:text-white transition whitespace-nowrap">Thương vụ chờ xử lý (0)</button></div>
+                    <div class="flex flex-wrap gap-2 md:gap-4 border-b border-slate-700 pb-2 text-sm md:text-base">
+                        <button id="tab-transfer-market" class="px-3 py-2 font-bold text-green-400 border-b-2 border-green-400 whitespace-nowrap">Thị trường Mua</button>
+                        <button id="tab-transfer-offers" class="px-3 py-2 font-medium text-slate-400 hover:text-white transition whitespace-nowrap">Thương vụ chờ xử lý (0)</button>
+                    </div>
+
                     <div id="transfer-market-section" class="bg-slate-800/80 rounded-2xl border border-slate-700/50 overflow-hidden shadow-xl">
                         <div class="p-4 md:p-6 border-b border-slate-700/50 flex justify-between items-center bg-slate-800">
                             <h3 class="text-base md:text-xl font-bold text-white">Cầu thủ Đang Rao Bán</h3>
                             <button id="refresh-market-btn" class="text-xs md:text-sm bg-slate-700 hover:bg-slate-600 px-3 py-2 rounded font-bold text-yellow-400 transition whitespace-nowrap border border-slate-600">Làm mới (-€10k)</button>
                         </div>
                         <div class="overflow-x-auto hide-scrollbar">
-                            <table class="w-full text-left border-collapse min-w-max">
+                            <table class="w-full text-left border-collapse min-w-[500px]">
                                 <thead>
-                                    <tr class="bg-slate-900/50 text-slate-400 text-[10px] md:text-xs uppercase">
-                                        <th class="p-3 text-center whitespace-nowrap">Vị trí</th>
-                                        <th class="p-3 w-full">Cầu thủ</th>
-                                        <th class="p-3 text-center whitespace-nowrap">OVR</th>
-                                        <th class="p-3 text-right whitespace-nowrap">Giá Niêm Yết</th>
-                                        <th class="p-3 text-center whitespace-nowrap">Thao tác</th>
+                                    <tr class="bg-slate-900/50 text-slate-400 text-xs md:text-sm uppercase">
+                                        <th class="p-3 md:p-4 pl-4 md:pl-6 text-center w-16 md:w-20 whitespace-nowrap">Vị trí</th>
+                                        <th class="p-3 md:p-4">Cầu thủ</th>
+                                        <th class="p-3 md:p-4 text-center w-16 md:w-24 whitespace-nowrap">OVR</th>
+                                        <th class="p-3 md:p-4 text-right pr-4 md:pr-6 w-24 md:w-32 whitespace-nowrap">Giá Niêm Yết</th>
+                                        <th class="p-3 md:p-4 text-center w-24 md:w-32 whitespace-nowrap">Thao tác</th>
                                     </tr>
                                 </thead>
                                 <tbody id="market-list-body" class="divide-y divide-slate-700/50 text-xs md:text-sm"></tbody>
                             </table>
                         </div>
                     </div>
-                    <div id="transfer-offers-section" class="hidden bg-slate-800/80 rounded-2xl border border-slate-700/50 overflow-hidden shadow-xl p-4 md:p-6"><h3 class="text-lg md:text-xl font-bold text-white mb-2 md:mb-4">Đề Nghị Chuyển Nhượng</h3><p class="text-xs md:text-sm text-slate-400 mb-4">Quyết định Mua/Bán sẽ được BOT xem xét và chốt kết quả ngay sau khi bạn kết thúc 1 Vòng đấu.</p><div id="offers-list-container" class="space-y-4"></div></div>
+
+                    <div id="transfer-offers-section" class="hidden bg-slate-800/80 rounded-2xl border border-slate-700/50 overflow-hidden shadow-xl p-4 md:p-6">
+                        <h3 class="text-lg md:text-xl font-bold text-white mb-2 md:mb-4">Đề Nghị Chuyển Nhượng</h3>
+                        <p class="text-xs md:text-sm text-slate-400 mb-4">Quyết định Mua/Bán sẽ được BOT xem xét và chốt kết quả ngay sau khi bạn kết thúc 1 Vòng đấu.</p>
+                        <div id="offers-list-container" class="space-y-4"></div>
+                    </div>
                 </div>
 
                 <div id="view-store" class="hidden space-y-6">
@@ -164,17 +190,16 @@
         </nav>
     </div>
 
-    <!-- MODAL KHỞI TẠO -->
+    <!-- CÁC MODAL -->
     <div id="init-club-modal" class="hidden fixed inset-0 bg-slate-900/90 z-[100] flex items-center justify-center p-4">
         <div class="bg-slate-800 border border-green-900/50 p-6 md:p-8 rounded-2xl w-full max-w-md shadow-2xl">
             <h2 class="text-xl md:text-2xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600">Thành lập Câu lạc bộ</h2>
-            <p class="text-slate-400 text-xs md:text-sm mb-6">Nhập tên đội bóng để hệ thống tự động khởi tạo danh sách 16 cầu thủ ban đầu cho bạn.</p>
+            <p class="text-slate-400 text-xs md:text-sm mb-6">Nhập tên đội bóng để hệ thống tự động khởi tạo danh sách cầu thủ.</p>
             <input type="text" id="club-name-input" placeholder="Tên CLB của bạn" class="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 mb-4 rounded-xl outline-none text-white text-sm md:text-base">
             <button id="create-club-btn" class="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl font-bold shadow-lg transition">Nhận Đội Hình</button>
         </div>
     </div>
     
-    <!-- MODAL CHI TIẾT CẦU THỦ -->
     <div id="player-detail-modal" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex flex-col items-center justify-center p-4">
         <div class="bg-gradient-to-b from-slate-800 to-slate-900 w-full max-w-sm rounded-2xl border border-slate-600 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]">
             <button id="close-detail-modal" class="absolute top-3 right-4 text-slate-400 hover:text-white z-20 text-xl font-bold">✕</button>
@@ -202,7 +227,6 @@
         </div>
     </div>
 
-    <!-- MODAL CHIẾN THUẬT -->
     <div id="select-player-modal" class="hidden fixed inset-0 bg-slate-900/90 z-[100] flex flex-col items-center justify-center p-4">
         <div class="bg-slate-800 border border-slate-600 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
             <div class="p-4 border-b border-slate-700 flex justify-between items-center"><h3 class="font-bold text-white text-sm md:text-base">Chọn cầu thủ vào sân</h3><button onclick="window.closeBenchSelect()" class="text-slate-400 hover:text-white font-bold text-xl">✕</button></div>
@@ -211,7 +235,6 @@
         </div>
     </div>
 
-    <!-- MODAL VẬT PHẨM -->
     <div id="apply-item-modal" class="hidden fixed inset-0 bg-slate-900/90 z-[100] flex flex-col items-center justify-center p-4">
         <div class="bg-slate-800 border border-indigo-600 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]">
             <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-indigo-900/30"><h3 class="font-bold text-white text-sm md:text-base">Dùng Vật phẩm</h3><button onclick="window.closeApplyItemModal()" class="text-slate-400 hover:text-white font-bold text-xl">✕</button></div>
