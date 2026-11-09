@@ -129,11 +129,13 @@
                     <div class="bg-slate-800/80 rounded-2xl border border-slate-700/50 overflow-hidden shadow-xl">
                         <div class="overflow-x-auto hide-scrollbar">
                             <table class="w-full text-left border-collapse min-w-max">
+                                <!-- Trong index.html -->
                                 <thead>
                                     <tr class="bg-slate-900/50 text-slate-400 text-[10px] md:text-xs uppercase">
                                         <th class="p-3 text-center whitespace-nowrap">Vị trí</th>
-                                        <th class="p-3 w-full">Cầu thủ</th>
-                                        <th class="p-3 text-center whitespace-nowrap">Thể lực</th> <!-- Bổ sung cột bị thiếu -->
+                                        <!-- SỬA w-full THÀNH min-w-[150px] -->
+                                        <th class="p-3 min-w-[150px]">Cầu thủ</th> 
+                                        <th class="p-3 text-center whitespace-nowrap">Thể lực</th>
                                         <th class="p-3 text-center whitespace-nowrap">OVR</th>
                                         <th class="p-3 text-center whitespace-nowrap">Trạng thái</th>
                                         <th class="p-3 text-right whitespace-nowrap">Giá trị</th>
