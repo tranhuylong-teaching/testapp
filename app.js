@@ -3,9 +3,18 @@ import { showLoading, hideLoading, showToast } from './ui-helpers.js';
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 import { doc, getDoc, setDoc, deleteDoc, collection, getDocs, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
+// Khắc phục lỗi Mất Cửa hàng (Định nghĩa trực tiếp mảng Item)
+const STORE_ITEMS = [
+    { id: 'item_speed', name: 'Giày Khinh Công', icon: '👟', desc: '+3 Tốc độ (PAC)', price: 500000, type: 'stat', stat: 'PAC', amount: 3 },
+    { id: 'item_shoot', name: 'Bia Đỡ Đạn', icon: '🎯', desc: '+3 Dứt điểm (SHO)', price: 600000, type: 'stat', stat: 'SHO', amount: 3 },
+    { id: 'item_pass', name: 'Băng Đội Trưởng', icon: '🧠', desc: '+3 Chuyền bóng (PAS)', price: 400000, type: 'stat', stat: 'PAS', amount: 3 },
+    { id: 'item_def', name: 'Tạ Chân', icon: '🛡️', desc: '+3 Phòng ngự, +2 Thể chất', price: 500000, type: 'stat_multi', stats: {DEF: 3, PHY: 2} },
+    { id: 'item_gacha', name: 'Lò Đào Tạo Trẻ', icon: '⭐', desc: 'Tuyển 1 tài năng trẻ nội binh (OVR 60-75)', price: 1000000, type: 'gacha' }
+];
+
 // Global State
 let currentUserId = null; let myClubName = "My Club"; let myBudget = 0; let myFame = 30;
-let myFacilities = { medical: 1, scouting: 1, training: 1, finance: 1, scoutingCooldown: 5, scoutedPlayer: null, medicalSlots: [], trainingSlots: [] };
+let myFacilities = { medical: 1, scouting: 1, training: 1, finance: 1, scoutingCooldown: 5, scoutedPlayer: null, medicalSlots: [], trainingSlots: [], pendingUpgrade: null };
 let globalPlayersList = []; let globalPlayersMap = {};
 let currentFormation = '4-4-2'; let startingXI = new Array(11).fill(null); 
 let teamPower = { OVR: 0, ATT: 0, MID: 0, DEF: 0 };
@@ -15,16 +24,6 @@ let currentMarketList = []; let currentlyViewingPlayerId = null; let currentSlot
 const TABS = ['overview', 'squad', 'tactics', 'league', 'transfer', 'store', 'facilities'];
 window.showToast = showToast; window.showLoading = showLoading; window.hideLoading = hideLoading;
 
-// CỬA HÀNG VẬT PHẨM (Đưa vào trực tiếp để chống lỗi import)
-const STORE_ITEMS = [
-    { id: 'item_speed', name: 'Giày Khinh Công', icon: '👟', desc: '+3 Tốc độ (PAC)', price: 500000, type: 'stat', stat: 'PAC', amount: 3 },
-    { id: 'item_shoot', name: 'Bia Đỡ Đạn', icon: '🎯', desc: '+3 Dứt điểm (SHO)', price: 600000, type: 'stat', stat: 'SHO', amount: 3 },
-    { id: 'item_pass', name: 'Băng Đội Trưởng', icon: '🧠', desc: '+3 Chuyền bóng (PAS)', price: 400000, type: 'stat', stat: 'PAS', amount: 3 },
-    { id: 'item_def', name: 'Tạ Chân', icon: '🛡️', desc: '+3 Phòng ngự, +2 Thể chất', price: 500000, type: 'stat_multi', stats: {DEF: 3, PHY: 2} },
-    { id: 'item_gacha', name: 'Lò Đào Tạo Trẻ', icon: '⭐', desc: 'Tuyển 1 tài năng trẻ nội binh (OVR 60-75)', price: 1000000, type: 'gacha' }
-];
-
-// Khóa Menu khi đang trong trận đấu
 const toggleNavLock = (isLocked) => {
     const navs = document.querySelectorAll('aside nav, nav.fixed');
     navs.forEach(n => {
@@ -120,7 +119,7 @@ const loadGameData = async (uid) => {
         const profileSnap = await getDoc(doc(db, 'artifacts', appId, 'users', uid, 'profile', 'info'));
         if (profileSnap.exists()) {
             const profileData = profileSnap.data(); myClubName = profileData.clubName; myBudget = profileData.budget || 10000000; myFame = profileData.fame || 30;
-            myFacilities = profileData.facilities || { medical: 1, scouting: 1, training: 1, finance: 1, scoutingCooldown: 5, scoutedPlayer: null, medicalSlots: [], trainingSlots: [] };
+            myFacilities = profileData.facilities || { medical: 1, scouting: 1, training: 1, finance: 1, scoutingCooldown: 5, scoutedPlayer: null, medicalSlots: [], trainingSlots: [], pendingUpgrade: null };
             if(!myFacilities.medicalSlots) myFacilities.medicalSlots = []; if(!myFacilities.trainingSlots) myFacilities.trainingSlots = [];
             updateHeaderDisplay();
             
@@ -151,9 +150,7 @@ const loadGameData = async (uid) => {
                 leagueState = leagueSnap.data(); if (!leagueState.promotedBots) leagueState.promotedBots = []; if (!leagueState.pendingBuys) leagueState.pendingBuys = []; if (!leagueState.pendingSells) leagueState.pendingSells = []; if (!leagueState.rankHistory) leagueState.rankHistory = [];
             } else { await initLeagueData(uid, myClubName); }
             switchView('overview');
-            
             if (leagueState.currentRound <= 31) document.getElementById('quick-play-btn').classList.remove('hidden');
-            else document.getElementById('quick-play-btn').classList.add('hidden');
         } else { document.getElementById('init-club-modal').classList.remove('hidden'); }
     } catch(e) { showToast("Lỗi tải dữ liệu: " + e.message); } finally { hideLoading(); }
 };
@@ -196,13 +193,12 @@ const renderSquadList = () => {
     const posColors = { GK: 'bg-yellow-600', DEF: 'bg-blue-600', MID: 'bg-green-600', FWD: 'bg-red-600' };
     
     globalPlayersList.forEach(p => {
-        // CẬP NHẬT TRẠNG THÁI HIỂN THỊ RÕ RÀNG HƠN
         let statusHtml = '';
-        if (p.isListed) statusHtml = '<span class="text-[10px] md:text-xs bg-red-900 text-red-300 px-1 md:px-2 py-1 rounded">Chờ Bán</span>';
-        else if(myFacilities.medicalSlots.includes(p.id)) statusHtml = '<span class="text-[10px] md:text-xs bg-yellow-900 text-yellow-300 px-1 md:px-2 py-1 rounded">🏥 Y tế</span>';
-        else if(myFacilities.trainingSlots.includes(p.id)) statusHtml = '<span class="text-[10px] md:text-xs bg-blue-900 text-blue-300 px-1 md:px-2 py-1 rounded">🏋️ Tập luyện</span>';
-        else if(startingXI.includes(p.id)) statusHtml = '<span class="text-[10px] md:text-xs bg-green-900 text-green-300 px-1 md:px-2 py-1 rounded">⚽ Đá chính</span>';
-        else statusHtml = '<span class="text-[10px] md:text-xs bg-slate-700 text-slate-300 px-1 md:px-2 py-1 rounded">🪑 Dự bị</span>';
+        if (p.isListed) statusHtml = '<span class="text-[10px] md:text-xs bg-red-900 text-red-300 px-1 md:px-2 py-1 rounded w-16 text-center inline-block">Chờ bán</span>';
+        else if(myFacilities.medicalSlots.includes(p.id)) statusHtml = '<span class="text-[10px] md:text-xs bg-yellow-900 text-yellow-300 px-1 md:px-2 py-1 rounded w-16 text-center inline-block">🏥 Y tế</span>';
+        else if(myFacilities.trainingSlots.includes(p.id)) statusHtml = '<span class="text-[10px] md:text-xs bg-blue-900 text-blue-300 px-1 md:px-2 py-1 rounded w-16 text-center inline-block">🏋️ Tập</span>';
+        else if(startingXI.includes(p.id)) statusHtml = '<span class="text-[10px] md:text-xs bg-green-900 text-green-300 px-1 md:px-2 py-1 rounded w-16 text-center inline-block">⚽ Đá chính</span>';
+        else statusHtml = '<span class="text-[10px] md:text-xs bg-slate-700 text-slate-300 px-1 md:px-2 py-1 rounded w-16 text-center inline-block">🪑 Dự bị</span>';
 
         const stColor = p.injury > 0 ? 'text-red-500 font-bold' : (p.stamina >= 80 ? 'text-green-400' : (p.stamina >= 50 ? 'text-yellow-400' : 'text-red-400')); 
         const stBg = p.stamina >= 80 ? 'bg-green-400' : (p.stamina >= 50 ? 'bg-yellow-400' : 'bg-red-500');
@@ -221,19 +217,16 @@ window.openPlayerDetail = (playerId) => {
     
     const avatarEl = document.querySelector('#player-detail-modal .rounded-full.mx-auto');
     if (avatarEl) {
-        avatarEl.innerHTML = `<img src="https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(p.name.replace(/⭐/g, '').trim())}" class="w-full h-full object-cover bg-slate-200" />`;
+        // NÂNG CẤP API DICEBEAR SANG 'adventurer' (Giới tính Nam, hợp với cầu thủ hơn)
+        avatarEl.innerHTML = `<img src="https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(p.name.replace(/⭐/g, '').trim())}&backgroundColor=transparent" class="w-full h-full object-cover bg-slate-200" />`;
         avatarEl.className = `w-20 h-20 md:w-24 md:h-24 border-4 rounded-full mx-auto mb-3 flex items-center justify-center overflow-hidden shadow-lg transition-all ${rarity.border} ${rarity.bg}`;
     }
 
     document.getElementById('detail-name').textContent = p.name; 
     document.getElementById('detail-name').className = `text-xl md:text-2xl font-bold mb-1 ${rarity.text}`;
-    
     document.getElementById('detail-pos').textContent = p.pos; document.getElementById('detail-pos').className = `${posColors[p.pos]} text-white text-[10px] md:text-xs font-bold px-2 py-1 rounded`; 
     document.getElementById('detail-bg-pos').textContent = p.pos; 
-    
-    document.getElementById('detail-ovr').textContent = p.ovr; 
-    document.getElementById('detail-ovr').className = `text-lg md:text-xl font-bold ${rarity.text}`;
-    
+    document.getElementById('detail-ovr').textContent = p.ovr; document.getElementById('detail-ovr').className = `text-lg md:text-xl font-bold ${rarity.text}`;
     document.getElementById('detail-items-used').textContent = p.itemsUsed || 0;
     
     ['pac','sho','pas','dri','def','phy'].forEach(s => {
@@ -267,18 +260,12 @@ window.openPlayerDetail = (playerId) => {
 document.getElementById('close-detail-modal').addEventListener('click', () => { document.getElementById('player-detail-modal').classList.add('hidden'); });
 
 const calcTeamPower = () => {
-    let totalOVR = 0, count = 0;
-    let uAtt = 0, uAttC = 0, uMid = 0, uMidC = 0, uDef = 0, uDefC = 0;
-    
+    let totalOVR = 0, count = 0; let uAtt = 0, uAttC = 0, uMid = 0, uMidC = 0, uDef = 0, uDefC = 0;
     startingXI.forEach(id => { 
         if(id && globalPlayersMap[id]) { 
-            let p = globalPlayersMap[id]; 
-            let penalty = p.stamina < 60 ? Math.floor((60 - p.stamina) / 2) : 0; 
-            let effOvr = Math.max(1, p.ovr - penalty); 
+            let p = globalPlayersMap[id]; let penalty = p.stamina < 60 ? Math.floor((60 - p.stamina) / 2) : 0; let effOvr = Math.max(1, p.ovr - penalty); 
             totalOVR += effOvr; count++; 
-            if(p.pos === 'FWD') { uAtt += effOvr; uAttC++; }
-            else if(p.pos === 'MID') { uMid += effOvr; uMidC++; }
-            else { uDef += effOvr; uDefC++; } 
+            if(p.pos === 'FWD') { uAtt += effOvr; uAttC++; } else if(p.pos === 'MID') { uMid += effOvr; uMidC++; } else { uDef += effOvr; uDefC++; } 
         } 
     });
     
@@ -287,8 +274,7 @@ const calcTeamPower = () => {
     teamPower.MID = uMidC > 0 ? Math.round(uMid/uMidC) : 0;
     teamPower.DEF = uDefC > 0 ? Math.round(uDef/uDefC) : 0;
 
-    const ovrEl = document.getElementById('team-ovr');
-    if(ovrEl) ovrEl.textContent = teamPower.OVR;
+    const ovrEl = document.getElementById('team-ovr'); if(ovrEl) ovrEl.textContent = teamPower.OVR;
     if(leagueState && leagueState.standings) { let userTeam = leagueState.standings.find(t => t.isUser); if(userTeam) userTeam.ovr = teamPower.OVR; }
 };
 
@@ -351,6 +337,8 @@ const generateMarketPlayers = () => {
         const ovr = isStar ? Math.floor(Math.random()*15)+80 : Math.floor(Math.random()*20)+50; const val = ovr * (isStar ? 150000 : 80000); let stats = { PAC: ovr, SHO: ovr, PAS: ovr, DRI: ovr, DEF: ovr, PHY: ovr };
         currentMarketList.push({ id: 'market_' + Date.now() + i, name: generatePlayerName(isStar), pos: pos, ovr: ovr, value: val, stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, stamina: 100, injury: 0, isListed: false, itemsUsed: 0 });
     }
+    const order = { 'GK': 1, 'DEF': 2, 'MID': 3, 'FWD': 4 };
+    currentMarketList.sort((a, b) => order[a.pos] - order[b.pos] || b.ovr - a.ovr);
 };
 
 const renderTransferMarket = () => {
@@ -362,7 +350,19 @@ const renderTransferMarket = () => {
         tbody.innerHTML += `<tr class="hover:bg-slate-700/50 border-b border-slate-700/30 transition-colors"><td class="p-3 md:p-4 pl-4 md:pl-6"><span class="${posColors[p.pos]} text-white text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-1 rounded w-10 md:w-12 inline-block text-center">${p.pos}</span></td><td class="p-3 md:p-4 font-medium text-white max-w-[120px] truncate">${p.name} ${p.ovr >= 85 ? '<span class="text-[9px] text-yellow-400 block sm:inline">(Fame > 60)</span>' : ''}</td><td class="p-3 md:p-4 text-center font-bold ${rarity.text}">${p.ovr}</td><td class="p-3 md:p-4 text-right pr-4 md:pr-6 text-yellow-400">€${p.value.toLocaleString()}</td><td class="p-3 md:p-4">${btnHtml}</td></tr>`;
     });
 };
-document.getElementById('refresh-market-btn').addEventListener('click', () => { generateMarketPlayers(); renderTransferMarket(); });
+
+document.getElementById('refresh-market-btn').addEventListener('click', async () => { 
+    if(myBudget < 10000) { showToast("Bạn không đủ €10,000 để làm mới TTCN!", "error"); return; }
+    if(confirm("Xác nhận chi €10,000 phí môi giới để tìm lứa cầu thủ mới?")) {
+        showLoading("ĐANG LIÊN HỆ CÒ BÓNG ĐÁ...");
+        try {
+            myBudget -= 10000; updateHeaderDisplay();
+            await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { budget: myBudget }, { merge: true });
+            generateMarketPlayers(); renderTransferMarket(); 
+            showToast("Đã làm mới Thị trường chuyển nhượng!", "success");
+        } catch (e) { showToast("Lỗi làm mới!"); } finally { hideLoading(); }
+    }
+});
 document.getElementById('tab-transfer-market').addEventListener('click', () => { document.getElementById('transfer-market-section').classList.remove('hidden'); document.getElementById('transfer-offers-section').classList.add('hidden'); document.getElementById('tab-transfer-market').className = "px-3 py-2 font-bold text-green-400 border-b-2 border-green-400 whitespace-nowrap"; document.getElementById('tab-transfer-offers').className = "px-3 py-2 font-medium text-slate-400 hover:text-white transition whitespace-nowrap"; document.getElementById('tab-transfer-offers').textContent = `Đơn chờ xử lý (${(leagueState.pendingBuys?.length || 0) + (leagueState.pendingSells?.length || 0)})`; });
 document.getElementById('tab-transfer-offers').addEventListener('click', () => { document.getElementById('transfer-market-section').classList.add('hidden'); document.getElementById('transfer-offers-section').classList.remove('hidden'); document.getElementById('tab-transfer-market').className = "px-3 py-2 font-medium text-slate-400 hover:text-white transition whitespace-nowrap"; document.getElementById('tab-transfer-offers').className = "px-3 py-2 font-bold text-green-400 border-b-2 border-green-400 whitespace-nowrap"; renderPendingTransfers(); });
 
@@ -391,7 +391,8 @@ window.listPlayerForSale = async () => {
     try {
         await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', p.id), { isListed: true }, { merge: true }); p.isListed = true;
         if(!leagueState.pendingSells) leagueState.pendingSells = []; leagueState.pendingSells.push({ playerId: p.id, playerName: p.name, askAmount: askAmount, baseValue: p.value }); await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState);
-        window.openPlayerDetail(p.id); renderSquadList(); showToast(`Đã đưa ${p.name} lên chợ với giá €${askAmount.toLocaleString()}!`, "success");
+        document.getElementById('player-detail-modal').classList.add('hidden'); // AUTO CLOSE
+        renderSquadList(); showToast(`Đã đưa ${p.name} lên chợ với giá €${askAmount.toLocaleString()}!`, "success");
     } catch(e) { showToast("Lỗi cập nhật trạng thái!"); } finally { hideLoading(); }
 };
 
@@ -447,8 +448,7 @@ const processTransferMarket = async (logContainer) => {
             let botOffer = Math.floor(s.baseValue * (0.7 + Math.random() * 0.5));
             if (botOffer >= s.askAmount) {
                 budgetEarned += botOffer; 
-                let currentNames = leagueState.standings.map(t => t.name);
-                let randomBot = currentNames[Math.floor(Math.random()*currentNames.length)];
+                let currentNames = leagueState.standings.map(t => t.name); let randomBot = currentNames[Math.floor(Math.random()*currentNames.length)];
                 await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', s.playerId)); globalPlayersList = globalPlayersList.filter(x => x.id !== s.playerId); delete globalPlayersMap[s.playerId]; startingXI = startingXI.map(id => id === s.playerId ? null : id);
                 resolvedLogs.push(`<div class="text-green-400 mb-1">🤝 <b>CHỐT ĐƠN:</b> Bán ${s.playerName} cho ${randomBot} (Giá <b>€${botOffer.toLocaleString()}</b>).</div>`);
             } else { remainingSells.push(s); resolvedLogs.push(`<div class="text-slate-400 mb-1">⏳ <b>Ế ẨM:</b> ${s.playerName} chưa ai mua. Đang tiếp tục rao.</div>`); }
@@ -456,7 +456,7 @@ const processTransferMarket = async (logContainer) => {
         leagueState.pendingSells = remainingSells;
     }
 
-    // AUTO-REFRESH MARKET SAU MỖI VÒNG ĐẤU
+    // AUTO-REFRESH MARKET
     generateMarketPlayers();
 
     if (resolvedLogs.length > 0) {
@@ -465,69 +465,17 @@ const processTransferMarket = async (logContainer) => {
     }
 };
 
-// ================= MODULE 8: STORE =================
-const renderStore = () => {
-    const container = document.getElementById('store-items-container'); container.innerHTML = '';
-    STORE_ITEMS.forEach(item => { container.innerHTML += `<div class="bg-slate-800/80 border border-slate-700 rounded-xl p-6 shadow-lg flex flex-col justify-between hover:border-indigo-500/50 transition-colors"><div><div class="text-4xl mb-3">${item.icon}</div><h3 class="text-xl font-bold text-white mb-1">${item.name}</h3><p class="text-slate-400 text-sm mb-4">${item.desc}</p></div><div><div class="text-yellow-400 font-bold mb-3 text-lg">€${item.price.toLocaleString()}</div><button onclick="window.buyItem('${item.id}')" class="w-full py-2 ${item.type === 'gacha' ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-indigo-600 hover:bg-indigo-500'} text-white font-bold rounded-lg transition shadow-lg">${item.type === 'gacha' ? 'Mở Gói Ngay' : 'Mua & Sử dụng'}</button></div></div>`; });
-};
-
-window.buyItem = async (itemId) => {
-    const item = STORE_ITEMS.find(x => x.id === itemId); if (!item) return;
-    if (myBudget < item.price) { showToast("Bạn không đủ tiền để mua vật phẩm này!", "error"); return; }
-    if (item.type === 'gacha') {
-        if(globalPlayersList.length + (leagueState.pendingBuys?.length || 0) >= 25) { showToast("Đội hình đã đầy (Tối đa 25 người)!"); return; }
-        if (confirm(`Xác nhận chi €${item.price.toLocaleString()} để tuyển tài năng trẻ?`)) { await rollGacha(item.price); }
-    } else {
-        currentItemToApply = item; document.getElementById('apply-item-name').textContent = item.name; const container = document.getElementById('apply-item-list-container'); container.innerHTML = '';
-        let sortedPlayers = [...globalPlayersList].sort((a,b) => b.ovr - a.ovr);
-        sortedPlayers.forEach(p => {
-            const usedCount = p.itemsUsed || 0; const canUse = usedCount < 5;
-            container.innerHTML += `<div class="flex justify-between items-center p-3 hover:bg-slate-700/50 border-b border-slate-700/50 rounded ${canUse ? 'cursor-pointer' : 'opacity-50 grayscale'}" ${canUse ? `onclick="window.applyItemToPlayer('${p.id}')"` : ''}><div><div class="text-white font-medium">${p.name}</div><div class="text-xs text-indigo-300">Đã dùng: ${usedCount}/5</div></div><div class="text-right"><div class="text-green-400 font-bold">OVR ${p.ovr}</div>${!canUse ? `<div class="text-red-400 text-xs">Đã đạt giới hạn</div>` : ''}</div></div>`;
-        });
-        document.getElementById('apply-item-modal').classList.remove('hidden');
-    }
-};
-window.closeApplyItemModal = () => { document.getElementById('apply-item-modal').classList.add('hidden'); currentItemToApply = null; };
-
-window.applyItemToPlayer = async (playerId) => {
-    const p = globalPlayersMap[playerId]; const item = currentItemToApply; if (!p || !item) return;
-    if (myBudget < item.price) { showToast("Bạn không đủ tiền!", "error"); return; }
-    if (confirm(`Sử dụng [${item.name}] cho ${p.name}?`)) {
-        showLoading("ĐANG ÁP DỤNG GIÁO ÁN...");
-        try {
-            window.closeApplyItemModal(); myBudget -= item.price; updateHeaderDisplay();
-            await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { budget: myBudget }, { merge: true });
-            if (!p.bonusStats) p.bonusStats = { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 };
-            if (item.type === 'stat') { p.stats[item.stat] += item.amount; p.bonusStats[item.stat] = (p.bonusStats[item.stat] || 0) + item.amount; if(p.stats[item.stat] > 99) { const excess = p.stats[item.stat] - 99; p.stats[item.stat] = 99; p.bonusStats[item.stat] -= excess; } } 
-            else if (item.type === 'stat_multi') { for (const [key, value] of Object.entries(item.stats)) { p.stats[key] += value; p.bonusStats[key] = (p.bonusStats[key] || 0) + value; if(p.stats[key] > 99) { const excess = p.stats[key] - 99; p.stats[key] = 99; p.bonusStats[key] -= excess; } } }
-            p.ovr = recalculateOVR(p.pos, p.stats); p.value = p.ovr * 100000; p.itemsUsed = (p.itemsUsed || 0) + 1;
-            await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', p.id), { stats: p.stats, bonusStats: p.bonusStats, ovr: p.ovr, value: p.value, itemsUsed: p.itemsUsed }, { merge: true });
-            renderSquadList(); renderPitch(); showToast(`Sử dụng vật phẩm thành công! OVR mới của ${p.name} là ${p.ovr}.`, 'success');
-        } catch(e) { showToast("Lỗi khi dùng vật phẩm: " + e.message); } finally { hideLoading(); }
-    }
-};
-
-const rollGacha = async (price) => {
-    showLoading("ĐANG TUYỂN TÀI NĂNG TRẺ...");
-    try {
-        myBudget -= price; updateHeaderDisplay(); await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { budget: myBudget }, { merge: true });
-        const pos = POSITIONS[Math.floor(Math.random() * POSITIONS.length)]; const name = generatePlayerName(false);
-        const ovr = Math.floor(Math.random() * 16) + 60; const val = ovr * 70000; let stats = { PAC: ovr+2, SHO: ovr-2, PAS: ovr+1, DRI: ovr, DEF: ovr, PHY: ovr }; 
-        const newPlayerRef = doc(collection(db, 'artifacts', appId, 'users', currentUserId, 'players'));
-        const playerData = { name: name, pos: pos, ovr: recalculateOVR(pos, stats), stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, stamina: 100, injury: 0, value: val, isListed: false, itemsUsed: 0 };
-        await setDoc(newPlayerRef, playerData); playerData.id = newPlayerRef.id; globalPlayersList.push(playerData); globalPlayersMap[playerData.id] = playerData;
-        renderSquadList(); showToast(`Tuyệt vời! Bạn vừa mở ra ${name} (OVR ${playerData.ovr})!`, 'success');
-    } catch (e) { showToast("Lỗi khi mở gói cầu thủ: " + e.message); } finally { hideLoading(); }
-};
-
 // ================= MODULE 6.5: CƠ SỞ HẠ TẦNG =================
 const renderFacilities = () => {
     const container = document.getElementById('facilities-container'); if(!container) return; container.innerHTML = '';
+    
+    // Giao diện Slot Y tế
     let medSlotsHtml = `<div class="mt-4 text-[11px] md:text-sm border-t border-slate-700 pt-3"><div class="text-slate-400 mb-2 font-bold">Đang nằm viện (${myFacilities.medicalSlots.length}/${myFacilities.medical}):</div>`;
     if (myFacilities.medicalSlots.length === 0) medSlotsHtml += `<div class="text-slate-500 italic bg-slate-900 p-2 rounded border border-dashed border-slate-700 text-center">Trống</div>`;
     else { myFacilities.medicalSlots.forEach(id => { const p = globalPlayersMap[id]; if(p) medSlotsHtml += `<div class="flex justify-between items-center text-white bg-slate-900 p-2 rounded mb-1 border border-slate-700"><span>🚑 ${p.name}</span><button onclick="window.removeFromFacility('${id}', 'medical')" class="text-red-400 hover:text-red-300 font-bold text-[10px] md:text-xs bg-red-900/30 px-2 py-1 rounded">Rút ra</button></div>`; }); }
     medSlotsHtml += `</div>`;
 
+    // Giao diện Slot Huấn luyện
     let trainSlotsHtml = `<div class="mt-4 text-[11px] md:text-sm border-t border-slate-700 pt-3"><div class="text-slate-400 mb-2 font-bold">Đang tập luyện (${myFacilities.trainingSlots.length}/${myFacilities.training}):</div>`;
     if (myFacilities.trainingSlots.length === 0) trainSlotsHtml += `<div class="text-slate-500 italic bg-slate-900 p-2 rounded border border-dashed border-slate-700 text-center">Trống</div>`;
     else { myFacilities.trainingSlots.forEach(id => { const p = globalPlayersMap[id]; if(p) trainSlotsHtml += `<div class="flex justify-between items-center text-white bg-slate-900 p-2 rounded mb-1 border border-slate-700"><span>🏋️ ${p.name}</span><button onclick="window.removeFromFacility('${id}', 'training')" class="text-blue-400 hover:text-blue-300 font-bold text-[10px] md:text-xs bg-blue-900/30 px-2 py-1 rounded">Rút ra</button></div>`; }); }
@@ -536,15 +484,24 @@ const renderFacilities = () => {
     const facs = [
         { id: 'medical', name: '🏥 TT Y tế', desc: `Chữa chấn thương & hồi 100% thể lực ngay sau 1 vòng.`, level: myFacilities.medical, slotsHtml: medSlotsHtml },
         { id: 'training', name: '🏋️ TT Huấn luyện', desc: `Tăng +1 chỉ số ngẫu nhiên sau mỗi trận.`, level: myFacilities.training, slotsHtml: trainSlotsHtml },
-        { id: 'scouting', name: '🕵️ TT Tuyển trạch', desc: `Mang về 1 tài năng trẻ miễn phí sau ${6 - myFacilities.scouting} vòng đấu.`, level: myFacilities.scouting, slotsHtml: '' },
-        { id: 'finance', name: '🏦 TT Tài chính', desc: `Thụ động tăng ${myFacilities.finance * 5}% tổng Doanh thu trận đấu.`, level: myFacilities.finance, slotsHtml: '' }
+        { id: 'scouting', name: '🕵️ TT Tuyển trạch', desc: `Mang về 1 tài năng trẻ miễn phí (Cấp cao sẽ nhanh hơn).`, level: myFacilities.scouting, slotsHtml: '' },
+        { id: 'finance', name: '🏦 TT Tài chính', desc: `Thụ động tăng ${myFacilities.finance * 5}% tổng doanh thu nhận được.`, level: myFacilities.finance, slotsHtml: '' }
     ];
 
     facs.forEach(f => {
-        const isMax = f.level >= 5; const cost = f.level * 3000000;
-        let actionHtml = isMax 
-            ? `<button disabled class="w-full py-2 bg-slate-700 text-slate-400 font-bold text-sm rounded-lg cursor-not-allowed">Đã max (Lv.5)</button>`
-            : `<button onclick="window.upgradeFacility('${f.id}', ${cost})" class="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-lg shadow-lg transition">Nâng cấp: €${(cost/1000000).toFixed(1)}M</button>`;
+        const isMax = f.level >= 5; const cost = f.level * 3000000; 
+        const upgradeTime = Math.pow(2, f.level - 1); // Cấp 1->2 (1 vòng), Cấp 2->3 (2 vòng), Cấp 3->4 (4 vòng)...
+
+        let actionHtml = '';
+        if (myFacilities.pendingUpgrade && myFacilities.pendingUpgrade.id === f.id) {
+            actionHtml = `<button disabled class="w-full py-2 bg-yellow-700 text-yellow-200 font-bold text-sm rounded-lg cursor-not-allowed">Đang thi công (${myFacilities.pendingUpgrade.remaining} vòng)</button>`;
+        } else if (myFacilities.pendingUpgrade) {
+             actionHtml = `<button disabled class="w-full py-2 bg-slate-700 text-slate-400 font-bold text-sm rounded-lg cursor-not-allowed">Chờ công trình khác</button>`;
+        } else if (isMax) {
+            actionHtml = `<button disabled class="w-full py-2 bg-slate-700 text-slate-400 font-bold text-sm rounded-lg cursor-not-allowed">Đã max (Lv.5)</button>`;
+        } else {
+            actionHtml = `<button onclick="window.upgradeFacility('${f.id}', ${cost}, ${upgradeTime})" class="w-full py-2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-lg shadow-lg transition">Nâng cấp: €${(cost/1000000).toFixed(1)}M (${upgradeTime} trận)</button>`;
+        }
         
         if(f.id === 'scouting') {
             if(myFacilities.scoutedPlayer) { actionHtml = `<div class="bg-green-900/50 border border-green-500 p-3 rounded-lg text-center mb-3"><div class="text-green-400 font-bold mb-1 text-xs">🎉 Phát hiện Tài năng!</div><div class="text-white text-xs">${myFacilities.scoutedPlayer.name} (OVR ${myFacilities.scoutedPlayer.ovr})</div><button onclick="window.claimScoutedPlayer()" class="mt-2 w-full py-1.5 bg-green-600 hover:bg-green-500 text-white font-bold text-xs rounded">Ký Hợp Đồng</button></div>` + actionHtml; } 
@@ -554,12 +511,15 @@ const renderFacilities = () => {
     });
 };
 
-window.upgradeFacility = async (facId, cost) => {
+window.upgradeFacility = async (facId, cost, time) => {
     if(myBudget < cost) { showToast("Không đủ ngân sách!", "error"); return; }
-    showLoading("ĐANG NÂNG CẤP...");
+    if(myFacilities.pendingUpgrade) { showToast("Đang có công trình khác thi công!", "warning"); return; }
+    showLoading("ĐANG KÝ HỢP ĐỒNG THI CÔNG...");
     try {
-        myBudget -= cost; myFacilities[facId]++; await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { budget: myBudget, facilities: myFacilities }, { merge: true });
-        updateHeaderDisplay(); renderFacilities(); showToast("Nâng cấp Cơ sở hạ tầng thành công!", "success");
+        myBudget -= cost; 
+        myFacilities.pendingUpgrade = { id: facId, remaining: time };
+        await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { budget: myBudget, facilities: myFacilities }, { merge: true });
+        updateHeaderDisplay(); renderFacilities(); showToast("Bắt đầu thi công nâng cấp Cơ sở hạ tầng!", "success");
     } catch(e) { showToast("Lỗi nâng cấp: " + e.message, "error"); } finally { hideLoading(); }
 };
 
@@ -570,7 +530,7 @@ window.assignToFacility = async (playerId, type) => {
     currentSlots.push(playerId);
     try {
         await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { facilities: myFacilities }, { merge: true });
-        if(currentlyViewingPlayerId === playerId) window.openPlayerDetail(playerId);
+        document.getElementById('player-detail-modal').classList.add('hidden'); // AUTO CLOSE
         renderFacilities(); renderSquadList(); showToast(`Đã đưa vào Trung tâm!`, "success");
     } catch(e) { showToast("Lỗi lưu cơ sở: " + e.message, "error"); }
 };
@@ -579,7 +539,7 @@ window.removeFromFacility = async (playerId, type) => {
     if (type === 'medical') myFacilities.medicalSlots = myFacilities.medicalSlots.filter(id => id !== playerId); else myFacilities.trainingSlots = myFacilities.trainingSlots.filter(id => id !== playerId);
     try {
         await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { facilities: myFacilities }, { merge: true });
-        if(currentlyViewingPlayerId === playerId) window.openPlayerDetail(playerId);
+        document.getElementById('player-detail-modal').classList.add('hidden'); // AUTO CLOSE
         renderFacilities(); renderSquadList(); showToast(`Đã rút ra khỏi Trung tâm.`, "success");
     } catch(e) { showToast("Lỗi rút cầu thủ: " + e.message, "error"); }
 };
@@ -598,6 +558,20 @@ window.claimScoutedPlayer = async () => {
 
 const processFacilitiesAndStamina = async (logContainer) => {
     let facLogs = [];
+    
+    // TIẾN TRÌNH NÂNG CẤP CÔNG TRÌNH
+    if (myFacilities.pendingUpgrade) {
+        myFacilities.pendingUpgrade.remaining--;
+        if (myFacilities.pendingUpgrade.remaining <= 0) {
+            let facId = myFacilities.pendingUpgrade.id;
+            myFacilities[facId]++;
+            facLogs.push(`<div class="text-green-400">🏗️ <b>THI CÔNG XONG:</b> Đã hoàn tất nâng cấp công trình!</div>`);
+            myFacilities.pendingUpgrade = null;
+        } else {
+            facLogs.push(`<div class="text-yellow-400">🏗️ <b>ĐANG THI CÔNG:</b> Công trình còn ${myFacilities.pendingUpgrade.remaining} vòng đấu nữa sẽ hoàn thành.</div>`);
+        }
+    }
+
     globalPlayersList.forEach(p => {
         if (startingXI.includes(p.id)) {
             p.stamina = Math.max(0, p.stamina - (Math.floor(Math.random() * 11) + 15));
@@ -634,10 +608,22 @@ const processFacilitiesAndStamina = async (logContainer) => {
     if(!myFacilities.scoutedPlayer) {
         myFacilities.scoutingCooldown--;
         if(myFacilities.scoutingCooldown <= 0) {
-            const pos = POSITIONS[Math.floor(Math.random() * POSITIONS.length)]; const name = generatePlayerName();
-            const ovr = 60 + (myFacilities.scouting * 4) + Math.floor(Math.random() * 5); const val = ovr * 50000; let stats = { PAC: ovr+1, SHO: ovr, PAS: ovr+2, DRI: ovr, DEF: ovr, PHY: ovr };
-            myFacilities.scoutedPlayer = { name: name, pos: pos, ovr: recalculateOVR(pos, stats), stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, stamina: 100, injury: 0, value: val, isListed: false, itemsUsed: 0 };
-            facLogs.push(`<div class="text-yellow-400">🕵️ <b>TUYỂN TRẠCH:</b> Phát hiện tài năng trẻ OVR ${myFacilities.scoutedPlayer.ovr}.</div>`);
+            // NẾU ĐỘI HÌNH FULL 25 NGƯỜI -> RỚT ITEM TĂNG CHỈ SỐ CHO CẦU THỦ YẾU NHẤT ĐỘI
+            if(globalPlayersList.length >= 25) {
+                let lowestPlayer = [...globalPlayersList].sort((a,b) => a.ovr - b.ovr)[0];
+                if (lowestPlayer) {
+                    let statsKeys = ['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY']; let rStat = statsKeys[Math.floor(Math.random()*statsKeys.length)];
+                    lowestPlayer.stats[rStat] += 2;
+                    lowestPlayer.ovr = recalculateOVR(lowestPlayer.pos, lowestPlayer.stats); lowestPlayer.value = lowestPlayer.ovr * 100000;
+                    facLogs.push(`<div class="text-purple-400">🕵️ <b>TUYỂN TRẠCH:</b> Đội hình đã đầy! Bù lại Tuyển trạch viên mang về 1 Giáo án đặc biệt, giúp ${lowestPlayer.name} tăng chỉ số!</div>`);
+                }
+                myFacilities.scoutingCooldown = 6 - myFacilities.scouting;
+            } else {
+                const pos = POSITIONS[Math.floor(Math.random() * POSITIONS.length)]; const name = generatePlayerName(false);
+                const ovr = 60 + (myFacilities.scouting * 4) + Math.floor(Math.random() * 5); const val = ovr * 50000; let stats = { PAC: ovr+1, SHO: ovr, PAS: ovr+2, DRI: ovr, DEF: ovr, PHY: ovr };
+                myFacilities.scoutedPlayer = { name: name, pos: pos, ovr: recalculateOVR(pos, stats), stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, stamina: 100, injury: 0, value: val, isListed: false, itemsUsed: 0 };
+                facLogs.push(`<div class="text-yellow-400">🕵️ <b>TUYỂN TRẠCH:</b> Phát hiện tài năng trẻ OVR ${myFacilities.scoutedPlayer.ovr}.</div>`);
+            }
         }
     }
 
@@ -708,7 +694,6 @@ const startMatchEngine = (opponent, isFriendly) => {
     if(startingXI.includes(null) || teamPower.OVR === 0) { showToast("Vui lòng xếp đủ 11 cầu thủ vào Sân (Tab Chiến Thuật)!"); return; }
     let lowStaminaCount = startingXI.filter(id => globalPlayersMap[id] && globalPlayersMap[id].stamina < 30).length; if (lowStaminaCount >= 3) showToast("Cảnh báo: Đội có cầu thủ kiệt sức. Cẩn thận chấn thương!", "warning");
     
-    // KHÓA CẢM ỨNG THANH MENU ĐỂ BẮT BUỘC PHẢI ẤN NÚT KẾT THÚC
     toggleNavLock(true);
     document.getElementById('quick-play-btn').classList.add('hidden'); 
     
@@ -730,7 +715,6 @@ const startMatchEngine = (opponent, isFriendly) => {
         if (minute >= 90) {
             clearInterval(matchTimer); logContainer.innerHTML += '<div class="text-yellow-400 font-bold text-center mt-3 text-lg md:text-xl uppercase">Hết giờ! Trận đấu kết thúc!</div>';
             
-            // XỬ LÝ DOANH THU & BONUS TÀI CHÍNH
             let matchFee = isFriendly ? 0 : -50000; 
             let perfBonus = (homeScore > awayScore) ? (isFriendly ? 50000 : 300000) : (homeScore === awayScore ? (isFriendly ? 20000 : 100000) : 0);
             let cleanSheet = (awayScore === 0) ? (isFriendly ? 20000 : 150000) : 0; 
@@ -741,14 +725,12 @@ const startMatchEngine = (opponent, isFriendly) => {
             let financeBonus = Math.floor(income * (myFacilities.finance * 0.05));
             let totalEarnings = matchFee + income + financeBonus;
             
-            logContainer.innerHTML += `<div class="mt-3 md:mt-4 mb-2 bg-slate-800 border border-yellow-500/50 p-3 md:p-4 rounded-xl text-xs md:text-sm shadow-lg"><div class="font-bold text-yellow-400 mb-2 md:mb-3 border-b border-slate-700 pb-1 md:pb-2 text-center">📊 TỔNG KẾT TÀI CHÍNH</div><div class="flex justify-between text-slate-300 py-1"><span>Phí tổ chức:</span><span class="text-red-400">${matchFee < 0 ? '- €50,000' : 'Miễn phí'}</span></div>${sponsorMoney ? `<div class="flex justify-between text-slate-300 py-1"><span>Tài trợ giao hữu:</span><span class="text-green-400">+ €${sponsorMoney.toLocaleString()}</span></div>` : ''}${perfBonus ? `<div class="flex justify-between text-slate-300 py-1"><span>Thưởng thành tích:</span><span class="text-green-400">+ €${perfBonus.toLocaleString()}</span></div>` : ''}${cleanSheet ? `<div class="flex justify-between text-slate-300 py-1"><span>Sạch lưới:</span><span class="text-green-400">+ €${cleanSheet.toLocaleString()}</span></div>` : ''}${bigWin ? `<div class="flex justify-between text-slate-300 py-1"><span>Thắng đậm:</span><span class="text-green-400">+ €${bigWin.toLocaleString()}</span></div>` : ''}<div class="flex justify-between font-bold mt-2 pt-2 border-t border-slate-700 text-sm md:text-lg"><span>Tổng nhận (+€${financeBonus.toLocaleString()} Từ TTTT):</span><span class="${totalEarnings > 0 ? 'text-green-400' : 'text-red-400'}">${totalEarnings > 0 ? '+' : ''} €${totalEarnings.toLocaleString()}</span></div></div>`;
+            logContainer.innerHTML += `<div class="mt-3 md:mt-4 mb-2 bg-slate-800 border border-yellow-500/50 p-3 md:p-4 rounded-xl text-xs md:text-sm shadow-lg"><div class="font-bold text-yellow-400 mb-2 md:mb-3 border-b border-slate-700 pb-1 md:pb-2 text-center">📊 TỔNG KẾT TÀI CHÍNH</div><div class="flex justify-between text-slate-300 py-1"><span>Phí tổ chức:</span><span class="text-red-400">${matchFee < 0 ? '- €50,000' : 'Miễn phí'}</span></div>${sponsorMoney ? `<div class="flex justify-between text-slate-300 py-1"><span>Tài trợ giao hữu:</span><span class="text-green-400">+ €${sponsorMoney.toLocaleString()}</span></div>` : ''}${perfBonus ? `<div class="flex justify-between text-slate-300 py-1"><span>Thưởng thành tích:</span><span class="text-green-400">+ €${perfBonus.toLocaleString()}</span></div>` : ''}${cleanSheet ? `<div class="flex justify-between text-slate-300 py-1"><span>Sạch lưới:</span><span class="text-green-400">+ €${cleanSheet.toLocaleString()}</span></div>` : ''}${bigWin ? `<div class="flex justify-between text-slate-300 py-1"><span>Thắng đậm:</span><span class="text-green-400">+ €${bigWin.toLocaleString()}</span></div>` : ''}<div class="flex justify-between font-bold mt-2 pt-2 border-t border-slate-700 text-sm md:text-lg"><span>Tổng nhận (+€${financeBonus.toLocaleString()} Từ TT Tài chính):</span><span class="${totalEarnings > 0 ? 'text-green-400' : 'text-red-400'}">${totalEarnings > 0 ? '+' : ''} €${totalEarnings.toLocaleString()}</span></div></div>`;
             logContainer.scrollTop = logContainer.scrollHeight;
             
-            // AUTO SCROLL XUỐNG ĐỂ USER THẤY NÚT
             setTimeout(() => {
                 const liveMatchView = document.getElementById('match-live');
                 liveMatchView.scrollTop = liveMatchView.scrollHeight;
-                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
             }, 300);
 
             const finishBtn = document.getElementById('finish-match-btn'); finishBtn.classList.remove('hidden');
