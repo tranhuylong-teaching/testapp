@@ -862,15 +862,28 @@ document.getElementById('tab-transfer-market')?.addEventListener('click', functi
 document.getElementById('tab-store')?.addEventListener('click', () => { document.getElementById('transfer-market-section').classList.add('hidden'); document.getElementById('store-section').classList.remove('hidden'); document.getElementById('tab-transfer-market').className = "px-3 py-1.5 font-medium text-slate-400 hover:text-white transition whitespace-nowrap"; document.getElementById('tab-store').className = "px-3 py-1.5 font-bold text-green-400 border-b-2 border-green-400 whitespace-nowrap"; window.renderStore(); });
 
 function generateMarketPlayers() {
-    currentMarketList = []; for(let i=0; i<8; i++) { 
-        const isStar = Math.random() > 0.8; const pos = POSITIONS[Math.floor(Math.random()*POSITIONS.length)]; 
-        const ovr = isStar ? Math.floor(Math.random()*15)+80 : Math.floor(Math.random()*20)+50; const val = ovr * (isStar ? 150000 : 80000); let stats = { PAC: ovr, SHO: ovr, PAS: ovr, DRI: ovr, DEF: ovr, PHY: ovr };
-        currentMarketList.push({ id: 'market_' + Date.now() + i, 
-                                name: generatePlayerName(isStar), 
-                                pos: pos, ovr: ovr, value: val, stats: stats, 
-                                bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 },
-                                trait: assignRandomTrait(randomPos, Math.floor(Math.random() * 16) + 60),
-                                stamina: 100, injury: 0, isListed: false, itemsUsed: 0 });
+    currentMarketList = []; 
+    for(let i = 0; i < 8; i++) { 
+        const isStar = Math.random() > 0.8; 
+        const pos = POSITIONS[Math.floor(Math.random() * POSITIONS.length)]; // Đây là biến 'pos'
+        const ovr = isStar ? Math.floor(Math.random() * 15) + 80 : Math.floor(Math.random() * 20) + 50; 
+        const val = ovr * (isStar ? 150000 : 80000); 
+        let stats = { PAC: ovr, SHO: ovr, PAS: ovr, DRI: ovr, DEF: ovr, PHY: ovr };
+        
+        currentMarketList.push({ 
+            id: 'market_' + Date.now() + i, 
+            name: generatePlayerName(isStar), 
+            pos: pos, 
+            ovr: ovr, 
+            value: val, 
+            stats: stats, 
+            bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, 
+            stamina: 100, 
+            injury: 0, 
+            isListed: false, 
+            itemsUsed: 0,
+            trait: assignRandomTrait(pos, ovr) // Đã sửa thành pos ở đây
+        });
     }
     currentMarketList.sort((a, b) => POS_ORDER[a.pos] - POS_ORDER[b.pos] || b.ovr - a.ovr);
 }
