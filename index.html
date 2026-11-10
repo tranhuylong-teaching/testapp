@@ -55,6 +55,10 @@
         <main class="flex-1 flex flex-col h-screen overflow-y-auto bg-slate-900/30 relative pb-20 md:pb-0 hide-scrollbar">
             <!-- TOP HEADER INFO -->
             <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 p-3 md:p-4 flex justify-between items-center sticky top-0 z-40">
+                <div class="flex items-center gap-2">
+                    <span id="header-club-logo" class="text-xl">🛡️</span>
+                    <div class="text-sm font-bold text-white max-w-[100px] md:max-w-xs truncate" id="header-club-name">CLB của bạn</div>
+                </div>
                 <div class="flex-1 flex items-center gap-2">
                     <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-sm"><span class="text-slate-400 mr-1 hidden sm:inline">Quỹ:</span><span id="budget-display" class="text-green-400 font-bold">€0</span></div>
                     <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-sm"><span class="text-slate-400 mr-1 hidden sm:inline">Fame:</span><span id="fame-display" class="text-yellow-400 font-bold">🌟 30</span></div>
@@ -275,13 +279,22 @@
                     
                     <div class="bg-slate-800 p-5 md:p-6 rounded-2xl border border-slate-700 shadow-lg space-y-4 max-w-lg mx-auto md:mx-0">
                         <div>
+                            <label class="block text-xs font-bold text-slate-400 mb-1 uppercase">Logo CLB (Emoji hoặc Link Ảnh)</label>
+                            <input type="text" id="setting-club-logo" placeholder="VD: 🛡️ hoặc https://..." class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 outline-none text-sm text-white mb-3">
+                            
                             <label class="block text-xs font-bold text-slate-400 mb-1 uppercase">Tên Câu lạc bộ</label>
-                            <div class="flex gap-2"><input type="text" id="setting-club-name" class="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 outline-none text-sm text-white"><button onclick="window.saveSettings()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg text-sm font-bold transition shadow">Lưu</button></div>
+                            <input type="text" id="setting-club-name" class="w-full bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 outline-none text-sm text-white mb-3">
+                
+                            <label class="block text-xs font-bold text-slate-400 mb-1 uppercase">Tên Sân Vận Động</label>
+                            <div class="flex gap-2">
+                                <input type="text" id="setting-stadium-name" placeholder="VD: SVĐ Quốc gia" class="flex-1 bg-slate-900 border border-slate-600 rounded-lg px-3 py-2 outline-none text-sm text-white">
+                                <button onclick="window.saveSettings()" class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded-lg text-sm font-bold transition shadow whitespace-nowrap">Lưu</button>
+                            </div>
                         </div>
                         <div class="border-t border-slate-700 pt-4 mt-4 text-center md:text-left">
                             <button id="logout-btn-mob" onclick="document.getElementById('logout-btn').click()" class="w-full bg-slate-700 hover:bg-slate-600 text-white px-4 py-2.5 rounded-lg text-sm font-bold transition mb-2 block md:hidden">Đăng xuất an toàn</button>
                         </div>
-                        <div class="border-t border-red-900/50 pt-4 mt-8">
+                        <div class="border-t border-red-900/50 pt-4 mt-4">
                             <label class="block text-xs font-bold text-red-500 mb-2 uppercase">Khu vực nguy hiểm</label>
                             <button onclick="window.resetGameData()" class="w-full bg-red-900/40 border border-red-900/80 hover:bg-red-800/80 text-red-400 px-4 py-2.5 rounded-lg text-sm font-bold transition">Phá sản & Xóa dữ liệu Club</button>
                         </div>
