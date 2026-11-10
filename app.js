@@ -759,44 +759,49 @@ window.renderStore = function() {
     STORE_ITEMS.forEach(item => { container.innerHTML += `<div class="bg-slate-800/80 border border-slate-700 rounded-xl p-6 shadow-lg flex flex-col justify-between hover:border-indigo-500/50 transition-colors"><div><div class="text-4xl mb-3">${item.icon}</div><h3 class="text-xl font-bold text-white mb-1">${item.name}</h3><p class="text-slate-400 text-sm mb-4">${item.desc}</p></div><div><div class="text-yellow-400 font-bold mb-3 text-lg">€${item.price.toLocaleString()}</div><button onclick="window.buyItem('${item.id}')" class="w-full py-2 ${item.type === 'gacha' ? 'bg-yellow-600 hover:bg-yellow-500' : 'bg-indigo-600 hover:bg-indigo-500'} text-white font-bold rounded-lg transition shadow-lg">${item.type === 'gacha' ? 'Mở Gói Ngay' : 'Mua & Sử dụng'}</button></div></div>`; });
 };
 
-window.buyItem = async (itemId) => {
+let pendingGachaPlayer = null; 
+
+window.buyItem = async function(itemId) {
     const item = STORE_ITEMS.find(x => x.id === itemId); if (!item) return;
     if (myBudget < item.price) { showToast("Không đủ ngân sách!", "error"); return; }
+    
     if (item.type === 'gacha') {
         if(globalPlayersList.length + (leagueState.pendingBuys?.length || 0) >= 25) { showToast("Đội hình đã đầy!"); return; }
         if (confirm(`Chi €${item.price.toLocaleString()} gọi Tuyển trạch viên tìm tài năng trẻ?`)) { 
             showLoading("ĐANG LÙNG SỤC..."); 
             try {
-                window.playHaptic('light');
+                // Kiểm tra an toàn trước khi gọi rung
+                if(typeof window.playHaptic === 'function') window.playHaptic('light'); 
+                
                 myBudget -= item.price; updateHeaderDisplay(); 
                 await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { budget: myBudget }, { merge: true });
                 
-                // Random cầu thủ
-                const ovr = Math.floor(Math.random() * 16) + 60; // 60 -> 75
+                const ovr = Math.floor(Math.random() * 16) + 60; 
+                const randomPos = POSITIONS[Math.floor(Math.random() * POSITIONS.length)]; // Bốc thăm vị trí
                 let stats = { PAC: ovr+2, SHO: ovr-2, PAS: ovr+1, DRI: ovr, DEF: ovr, PHY: ovr }; 
                 
-                // Khởi tạo thẻ cầu thủ (chưa lưu vào DB vội, lật thẻ xong mới lưu)
                 pendingGachaPlayer = { 
                     name: generatePlayerName(false), 
-                    pos: POSITIONS[Math.floor(Math.random() * POSITIONS.length)], 
-                    ovr: recalculateOVR(POSITIONS[0], stats), 
+                    pos: randomPos, 
+                    ovr: recalculateOVR(randomPos, stats), // Đã tính đúng theo vị trí bốc được
                     stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, 
                     stamina: 100, injury: 0, value: ovr * 70000, isListed: false, itemsUsed: 0 
                 };
                 
-                // Thiết lập giao diện Modal Gacha
                 const modal = document.getElementById('gacha-modal');
                 const innerCard = document.getElementById('gacha-card-inner');
                 const resultFace = document.getElementById('gacha-result-face');
                 
-                // Reset card (úp thẻ lại)
+                // Báo lỗi rõ ràng nếu thiếu HTML
+                if(!modal || !innerCard || !resultFace) {
+                    throw new Error("Chưa dán đoạn HTML Modal Gacha vào file index.html");
+                }
+
                 innerCard.classList.remove('rotate-y-180');
                 document.getElementById('close-gacha-btn').classList.add('hidden');
                 
-                // Lấy màu độ hiếm
                 const rarity = getRarityClass(pendingGachaPlayer.ovr);
                 
-                // Chèn nội dung mặt sau
                 resultFace.className = `absolute inset-0 backface-hidden rotate-y-180 rounded-2xl border-4 ${rarity.border} ${rarity.cardBg} flex flex-col items-center justify-center overflow-hidden`;
                 resultFace.innerHTML = `
                     <div class="text-[80px] absolute -top-4 -left-2 text-white/10 font-black pointer-events-none">${pendingGachaPlayer.pos}</div>
@@ -806,21 +811,28 @@ window.buyItem = async (itemId) => {
                     <div class="bg-black/50 text-white/70 text-xs px-3 py-1 rounded-full mt-3 font-bold tracking-widest uppercase z-10">${pendingGachaPlayer.pos}</div>
                 `;
 
-                // Hiện Modal
                 hideLoading();
                 modal.classList.remove('hidden');
                 void modal.offsetWidth;
                 modal.classList.remove('opacity-0');
                 modal.classList.add('opacity-100');
 
-            } catch (e) { showToast("Lỗi!"); hideLoading(); } 
+            } catch (e) { 
+                // Thay vì "Lỗi!" cụt lủn, hệ thống sẽ in thẳng tên lỗi ra màn hình
+                showToast("Lỗi: " + e.message, "error"); 
+                console.error("Gacha Error: ", e);
+                hideLoading(); 
+            } 
         }
     } else {
-        window.playHaptic('light');
+        if(typeof window.playHaptic === 'function') window.playHaptic('light');
         currentItemToApply = item; 
-        document.getElementById('apply-item-name').textContent = item.name;
+        document.getElementById('apply-item-name').textContent = item.name; 
         const c = document.getElementById('apply-item-list-container'); c.innerHTML = '';
-        [...globalPlayersList].sort((a,b) => b.ovr - a.ovr).forEach(p => { const canUse = (p.itemsUsed || 0) < 5; c.innerHTML += `<div class="flex justify-between items-center p-3 hover:bg-slate-700/50 border-b border-slate-700/50 rounded ${canUse ? 'cursor-pointer' : 'opacity-50 grayscale'}" ${canUse ? `onclick="window.applyItemToPlayer('${p.id}')"` : ''}><div><div class="text-white font-medium">${p.name}</div><div class="text-xs text-indigo-300">Đã dùng: ${(p.itemsUsed || 0)}/5</div></div><div class="text-right"><div class="text-green-400 font-bold">OVR ${p.ovr}</div>${!canUse ? `<div class="text-red-400 text-xs">Đạt giới hạn</div>` : ''}</div></div>`; });
+        [...globalPlayersList].sort((a,b) => b.ovr - a.ovr).forEach(p => { 
+            const canUse = (p.itemsUsed || 0) < 5; 
+            c.innerHTML += `<div class="flex justify-between items-center p-3 hover:bg-slate-700/50 border-b border-slate-700/50 rounded ${canUse ? 'cursor-pointer' : 'opacity-50 grayscale'}" ${canUse ? `onclick="window.applyItemToPlayer('${p.id}')"` : ''}><div><div class="text-white font-medium">${p.name}</div><div class="text-xs text-indigo-300">Đã dùng: ${(p.itemsUsed || 0)}/5</div></div><div class="text-right"><div class="text-green-400 font-bold">OVR ${p.ovr}</div>${!canUse ? `<div class="text-red-400 text-xs">Đạt giới hạn</div>` : ''}</div></div>`; 
+        });
         document.getElementById('apply-item-modal').classList.remove('hidden');
     }
 };
