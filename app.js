@@ -577,7 +577,7 @@ window.openFuseModal = function(targetId) {
             // Tỷ lệ = 50% cơ bản + (Chênh lệch OVR * 5)
             // Ví dụ: Target 70, Fodder 65 -> Diff = -5 -> Tỷ lệ = 50 - 25 = 25%
             let diff = fodder.ovr - targetPlayer.ovr;
-            let successRate = Math.max(5, Math.min(100, 50 + (diff * 5))); 
+            let successRate = Math.max(5, Math.min(100, 50 + (diff * 2))); 
             
             let rateColor = successRate >= 70 ? 'text-green-400' : (successRate >= 40 ? 'text-yellow-400' : 'text-red-500');
             const cost = 200000; // Phí mỗi lần ép thẻ cố định 200k
