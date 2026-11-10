@@ -931,68 +931,144 @@ function renderLeagueView() {
     });
 }
 
-const startMatchEngine = (opponent, isFriendly) => {
+function startMatchEngine(opponent, isFriendly) {
     if(startingXI.includes(null) || teamPower.OVR === 0) { showToast("Xếp đủ 11 cầu thủ vào Sân!"); return; }
-    let lowStaminaCount = startingXI.filter(id => globalPlayersMap[id] && globalPlayersMap[id].stamina < 30).length; if (lowStaminaCount >= 3) showToast("Cảnh báo: Đội có nhiều người kiệt sức. Dễ chấn thương!", "warning");
+    let lowStaminaCount = startingXI.filter(id => globalPlayersMap[id] && globalPlayersMap[id].stamina < 30).length; 
+    if (lowStaminaCount >= 3) showToast("Cảnh báo: Đội có nhiều người kiệt sức. Dễ chấn thương!", "warning");
     
-    toggleNavLock(true); document.getElementById('quick-play-btn').classList.add('hidden'); 
-    document.getElementById('match-setup').classList.add('hidden'); document.getElementById('season-end-panel').classList.add('hidden'); document.getElementById('league-table-container').classList.add('hidden'); document.getElementById('match-live').classList.remove('hidden'); document.getElementById('finish-match-btn').classList.add('hidden');
+    toggleNavLock(true); 
+    document.getElementById('quick-play-btn').classList.add('hidden'); 
+    document.getElementById('match-setup').classList.add('hidden'); 
+    document.getElementById('season-end-panel').classList.add('hidden'); 
+    document.getElementById('league-table-container').classList.add('hidden'); 
+    
+    // Xóa class shake cũ nếu có
+    const liveMatchContainer = document.getElementById('match-live');
+    liveMatchContainer.classList.remove('hidden', 'animate-shake'); 
+    document.getElementById('finish-match-btn').classList.add('hidden');
+    
     let minute = 0; let homeScore = 0; let awayScore = 0;
-    const logContainer = document.getElementById('match-logs-container'); logContainer.innerHTML = `<div class="text-slate-400 text-center text-xs md:text-sm py-2">Trọng tài thổi còi bắt đầu trận đấu ${isFriendly ? "Giao Hữu" : ""}!</div>`;
-    document.getElementById('live-home-name').textContent = myClubName; document.getElementById('live-away-name').textContent = opponent.name; document.getElementById('score-home').textContent = "0"; document.getElementById('score-away').textContent = "0"; document.getElementById('match-minute').textContent = "0";
+    const logContainer = document.getElementById('match-logs-container'); 
+    
+    // Ghi đè innerHTML lần đầu tiên để reset
+    logContainer.innerHTML = `<div class="text-slate-400 text-center text-xs md:text-sm py-2 animate-fade-in-up">Trọng tài thổi còi bắt đầu trận đấu ${isFriendly ? "Giao Hữu" : ""}!</div>`;
+    
+    document.getElementById('live-home-name').textContent = myClubName; 
+    document.getElementById('live-away-name').textContent = opponent.name; 
+    
+    const scoreHomeEl = document.getElementById('score-home');
+    const scoreAwayEl = document.getElementById('score-away');
+    scoreHomeEl.textContent = "0"; scoreAwayEl.textContent = "0"; 
+    document.getElementById('match-minute').textContent = "0";
+    
     const homeOVR = teamPower.OVR; const awayOVR = opponent.ovr;
 
-    const matchTimer = setInterval(() => {
-        minute += Math.floor(Math.random() * 4) + 2; if(minute >= 90) minute = 90; document.getElementById('match-minute').textContent = minute;
-        const rng = Math.random() * 100; const homeGoalChance = (homeOVR / (homeOVR + awayOVR)) * 14; const awayGoalChance = (awayOVR / (awayOVR + homeOVR)) * 14;
-        if (rng < homeGoalChance) { homeScore++; document.getElementById('score-home').textContent = homeScore; logContainer.innerHTML += `<div class="text-green-400 font-bold bg-green-900/20 p-2 rounded border border-green-900/50">⚽ Phút ${minute}': VÀO! Bàn thắng cho ${myClubName.toUpperCase()}!</div>`; } 
-        else if (rng > 100 - awayGoalChance) { awayScore++; document.getElementById('score-away').textContent = awayScore; logContainer.innerHTML += `<div class="text-red-400 font-bold bg-red-900/20 p-2 rounded border border-red-900/50">⚽ Phút ${minute}': BÀN THẮNG CHO ${opponent.name.toUpperCase()}!</div>`; } 
-        else if (rng > 40 && rng < 50) { logContainer.innerHTML += `<div class="text-slate-400 italic px-2">⏱ Phút ${minute}': Thế trận giằng co...</div>`; } 
-        else if (rng > 70 && rng < 75) { logContainer.innerHTML += `<div class="text-yellow-400 px-2">Phút ${minute}': 🧤 Thủ môn cản phá xuất thần!</div>`; }
-        logContainer.scrollTop = logContainer.scrollHeight; 
+    // Hàm chèn log xịn sò không làm mất DOM cũ
+    function addLog(htmlString) {
+        logContainer.insertAdjacentHTML('beforeend', htmlString);
+        logContainer.scrollTop = logContainer.scrollHeight;
+    }
+
+    // Hàm kích hoạt hiệu ứng Bàn thắng
+    function triggerGoalEffect(isHome) {
+        const el = isHome ? scoreHomeEl : scoreAwayEl;
+        el.classList.remove('animate-pop');
+        void el.offsetWidth; // Bắt trình duyệt vẽ lại (Reflow) để reset CSS
+        el.classList.add('animate-pop');
+        
+        liveMatchContainer.classList.remove('animate-shake');
+        void liveMatchContainer.offsetWidth;
+        liveMatchContainer.classList.add('animate-shake');
+    }
+
+    // Tăng tốc độ mô phỏng lên một chút (400ms -> delay nhịp nhàng để đọc)
+    const matchTimer = setInterval(function() {
+        minute += Math.floor(Math.random() * 4) + 2; 
+        if(minute >= 90) minute = 90; 
+        document.getElementById('match-minute').textContent = minute;
+        
+        const rng = Math.random() * 100; 
+        const homeGoalChance = (homeOVR / (homeOVR + awayOVR)) * 14; 
+        const awayGoalChance = (awayOVR / (awayOVR + homeOVR)) * 14;
+        
+        if (rng < homeGoalChance) { 
+            homeScore++; scoreHomeEl.textContent = homeScore; 
+            triggerGoalEffect(true);
+            addLog(`<div class="text-green-300 font-bold bg-gradient-to-r from-green-900/60 to-transparent p-3 rounded-lg border-l-4 border-green-500 shadow-md animate-fade-in-up">⚽ Phút ${minute}': VÀO!!! Bàn thắng tuyệt đẹp cho ${myClubName.toUpperCase()}!</div>`); 
+        } 
+        else if (rng > 100 - awayGoalChance) { 
+            awayScore++; scoreAwayEl.textContent = awayScore; 
+            triggerGoalEffect(false);
+            addLog(`<div class="text-red-300 font-bold bg-gradient-to-r from-red-900/60 to-transparent p-3 rounded-lg border-l-4 border-red-500 shadow-md animate-fade-in-up">⚽ Phút ${minute}': VÀO! ${opponent.name.toUpperCase()} ghi bàn!</div>`); 
+        } 
+        else if (rng > 40 && rng < 48) { 
+            addLog(`<div class="text-slate-400 italic px-2 animate-fade-in-up">⏱ Phút ${minute}': Thế trận giằng co ở khu vực giữa sân...</div>`); 
+        } 
+        else if (rng > 70 && rng < 74) { 
+            addLog(`<div class="text-yellow-400 px-2 animate-fade-in-up">Phút ${minute}': 🧤 Thủ môn cản phá xuất thần! Một pha bóng thót tim!</div>`); 
+        }
+        else if (rng > 85 && rng < 88) {
+            addLog(`<div class="text-orange-400 px-2 animate-fade-in-up">Phút ${minute}': ⚠️ Trọng tài rút thẻ vàng cảnh cáo sau một pha phạm lỗi nguy hiểm.</div>`); 
+        }
 
         if (minute >= 90) {
-            clearInterval(matchTimer); logContainer.innerHTML += '<div class="text-yellow-400 font-bold text-center mt-3 text-lg uppercase">Hết giờ! Trận kết thúc!</div>';
+            clearInterval(matchTimer); 
+            addLog('<div class="text-yellow-400 font-black text-center mt-4 mb-2 text-xl uppercase tracking-widest drop-shadow-md animate-fade-in-up">HẾT GIỜ!</div>');
+            
             let matchFee = isFriendly ? 0 : -50000; 
             let perfBonus = (homeScore > awayScore) ? (isFriendly ? 50000 : 300000) : (homeScore === awayScore ? (isFriendly ? 20000 : 100000) : 0);
             let cleanSheet = (awayScore === 0) ? (isFriendly ? 20000 : 150000) : 0; 
             let bigWin = (homeScore - awayScore >= 3) ? (isFriendly ? 20000 : 200000) : 0; 
             let sponsorMoney = isFriendly ? 100000 : 0; 
+            
+            // Logic vé Sân Vận Động
             if(!myFacilities.stadium) myFacilities.stadium = 1;
             let currentStadium = STADIUM_STATS[myFacilities.stadium - 1];
             let ticketRevenue = currentStadium.capacity * currentStadium.ticketPrice;
             if (isFriendly) ticketRevenue = Math.floor(ticketRevenue * 0.3);
+
             let income = perfBonus + cleanSheet + bigWin + sponsorMoney + ticketRevenue;
             let financeBonus = Math.floor(income * (myFacilities.finance * 0.05));
             let totalEarnings = matchFee + income + financeBonus;
             
-            logContainer.innerHTML += `<div class="mt-3 mb-2 bg-slate-800 border border-yellow-500/50 p-3 rounded-xl text-xs sm:text-sm shadow-lg">
-                <div class="font-bold text-yellow-400 mb-2 border-b border-slate-700 pb-1 text-center">📊 TÀI CHÍNH TRẬN ĐẤU</div>
-                <div class="flex justify-between text-slate-300 py-1">
-                    <span>Phí tổ chức:</span><span class="text-red-400">${matchFee < 0 ? '- €50,000' : 'Miễn phí'}</span>
+            // Báo cáo tài chính cũng được AddLog trượt lên
+            addLog(`<div class="mt-3 mb-2 bg-slate-800 border border-yellow-500/50 p-4 rounded-xl text-xs sm:text-sm shadow-xl animate-fade-in-up">
+                <div class="font-bold text-yellow-400 mb-3 border-b border-slate-700 pb-2 text-center tracking-widest uppercase">📊 Báo cáo Tài chính</div>
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-slate-300"><span>Phí tổ chức:</span><span class="text-red-400 font-medium">${matchFee < 0 ? '- €50,000' : 'Miễn phí'}</span></div>
+                    ${ticketRevenue ? `<div class="flex justify-between text-slate-300"><span>Doanh thu Bán vé:</span><span class="text-green-400 font-medium">+ €${ticketRevenue.toLocaleString()}</span></div>` : ''}
+                    ${sponsorMoney ? `<div class="flex justify-between text-slate-300"><span>Tài trợ giao hữu:</span><span class="text-green-400 font-medium">+ €${sponsorMoney.toLocaleString()}</span></div>` : ''}
+                    ${perfBonus ? `<div class="flex justify-between text-slate-300"><span>Thưởng thành tích:</span><span class="text-green-400 font-medium">+ €${perfBonus.toLocaleString()}</span></div>` : ''}
+                    ${cleanSheet ? `<div class="flex justify-between text-slate-300"><span>Sạch lưới:</span><span class="text-green-400 font-medium">+ €${cleanSheet.toLocaleString()}</span></div>` : ''}
+                    ${bigWin ? `<div class="flex justify-between text-slate-300"><span>Thắng đậm:</span><span class="text-green-400 font-medium">+ €${bigWin.toLocaleString()}</span></div>` : ''}
                 </div>
-                ${sponsorMoney ? `<div class="flex justify-between text-slate-300 py-1"><span>Tài trợ giao hữu:</span><span class="text-green-400">+ €${sponsorMoney.toLocaleString()}</span></div>` : ''}
-                ${ticketRevenue ? `<div class="flex justify-between text-slate-300 py-1"><span>Doanh thu Bán vé:</span><span class="text-green-400">+ €${ticketRevenue.toLocaleString()}</span></div>` : ''}
-                ${perfBonus ? `<div class="flex justify-between text-slate-300 py-1"><span>Thưởng thành tích:</span><span class="text-green-400">+ €${perfBonus.toLocaleString()}</span></div>` : ''}
-                ${cleanSheet ? `<div class="flex justify-between text-slate-300 py-1"><span>Sạch lưới:</span><span class="text-green-400">+ €${cleanSheet.toLocaleString()}</span></div>` : ''}
-                ${bigWin ? `<div class="flex justify-between text-slate-300 py-1"><span>Thắng đậm:</span><span class="text-green-400">+ €${bigWin.toLocaleString()}</span></div>` : ''}
-                <div class="flex justify-between font-bold mt-2 pt-2 border-t border-slate-700 text-sm">
-                    <span>Tổng nhận (+€${financeBonus.toLocaleString()} Từ TT Tài chính):</span><span class="${totalEarnings > 0 ? 'text-green-400' : 'text-red-400'}">${totalEarnings > 0 ? '+' : ''} €${totalEarnings.toLocaleString()}</span>
+                <div class="flex justify-between font-bold mt-3 pt-3 border-t border-slate-700 text-sm bg-slate-900/50 p-2 rounded">
+                    <span>Tổng nhận (+€${financeBonus.toLocaleString()} Từ Tài chính):</span>
+                    <span class="${totalEarnings > 0 ? 'text-green-400' : 'text-red-400'} text-base">${totalEarnings > 0 ? '+' : ''} €${totalEarnings.toLocaleString()}</span>
                 </div>
-            </div>`;
-            logContainer.scrollTop = logContainer.scrollHeight;
-            setTimeout(() => { const liveMatchView = document.getElementById('match-live'); liveMatchView.scrollTop = liveMatchView.scrollHeight; }, 300);
+            </div>`);
+            
+            setTimeout(function() { 
+                const liveMatchView = document.getElementById('match-live'); 
+                liveMatchView.scrollTop = liveMatchView.scrollHeight; 
+            }, 300);
 
-            const finishBtn = document.getElementById('finish-match-btn'); finishBtn.classList.remove('hidden');
-            finishBtn.onclick = async () => { 
+            const finishBtn = document.getElementById('finish-match-btn'); 
+            finishBtn.classList.remove('hidden');
+            finishBtn.classList.add('animate-fade-in-up');
+            
+            finishBtn.onclick = async function() { 
                 finishBtn.textContent = "Đang xử lý ngầm..."; finishBtn.disabled = true; 
                 await processTransferMarket(); await processFacilitiesAndStamina(); 
                 finishBtn.textContent = "Lưu thành tích vòng đấu"; finishBtn.disabled = false; 
-                finishBtn.onclick = () => { if(isFriendly) finishFriendlyMatch(totalEarnings); else finishLeagueRound(homeScore, awayScore, totalEarnings); }; 
+                finishBtn.onclick = function() { 
+                    if(isFriendly) finishFriendlyMatch(totalEarnings); 
+                    else finishLeagueRound(homeScore, awayScore, totalEarnings); 
+                }; 
             };
         }
-    }, 300); 
-};
+    }, 400); 
+}
 
 document.getElementById('start-league-match-btn')?.addEventListener('click', () => { const opponentId = leagueState.schedule[leagueState.currentRound - 1]; activeOpponent = leagueState.standings.find(t => t.id === opponentId); startMatchEngine(activeOpponent, false); });
 document.getElementById('play-friendly-btn')?.addEventListener('click', () => { if ((leagueState.friendlyMatchesPlayed || 0) >= 5) { showToast("Hết lượt đá giao hữu mùa này!"); return; } activeOpponent = leagueState.standings[Math.floor(Math.random() * leagueState.standings.length)]; while (activeOpponent.isUser) { activeOpponent = leagueState.standings[Math.floor(Math.random() * leagueState.standings.length)]; } startMatchEngine(activeOpponent, true); });
