@@ -56,6 +56,12 @@ function getRarityClass(ovr) {
     };
 }
 
+window.playHaptic = function(type = 'light') {
+    if (!navigator.vibrate) return; // Nếu thiết bị không hỗ trợ thì bỏ qua
+    if (type === 'light') navigator.vibrate(50); // Rung nhẹ (click)
+    if (type === 'heavy') navigator.vibrate([100, 50, 100]); // Rung bần bật (Ghi bàn/Mở thẻ hiếm)
+};
+
 function updateHeaderDisplay() {
     if(document.getElementById('budget-display')) document.getElementById('budget-display').textContent = `€${(myBudget/1000000).toFixed(2)}M`;
     if(document.getElementById('fame-display')) document.getElementById('fame-display').textContent = `🌟 ${myFame}`;
@@ -758,14 +764,56 @@ window.buyItem = async (itemId) => {
     if (myBudget < item.price) { showToast("Không đủ ngân sách!", "error"); return; }
     if (item.type === 'gacha') {
         if(globalPlayersList.length + (leagueState.pendingBuys?.length || 0) >= 25) { showToast("Đội hình đã đầy!"); return; }
-        if (confirm(`Chi €${item.price.toLocaleString()} tìm tài năng trẻ?`)) { 
-            showLoading("ĐANG TÌM KIẾM..."); try {
-                myBudget -= item.price; updateHeaderDisplay(); await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { budget: myBudget }, { merge: true });
-                const ovr = Math.floor(Math.random() * 16) + 60; let stats = { PAC: ovr+2, SHO: ovr-2, PAS: ovr+1, DRI: ovr, DEF: ovr, PHY: ovr }; 
-                const newPlayerRef = doc(collection(db, 'artifacts', appId, 'users', currentUserId, 'players')); const playerData = { name: generatePlayerName(false), pos: POSITIONS[Math.floor(Math.random() * POSITIONS.length)], ovr: recalculateOVR(POSITIONS[0], stats), stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, stamina: 100, injury: 0, value: ovr * 70000, isListed: false, itemsUsed: 0 };
-                await setDoc(newPlayerRef, playerData); playerData.id = newPlayerRef.id; globalPlayersList.push(playerData); globalPlayersMap[playerData.id] = playerData;
-                showToast(`Đã chiêu mộ ${playerData.name}!`, 'success');
-            } catch (e) { showToast("Lỗi!"); } finally { hideLoading(); }
+        if (confirm(`Chi €${item.price.toLocaleString()} gọi Tuyển trạch viên tìm tài năng trẻ?`)) { 
+            showLoading("ĐANG LÙNG SỤC..."); 
+            try {
+                window.playHaptic('light');
+                myBudget -= item.price; updateHeaderDisplay(); 
+                await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { budget: myBudget }, { merge: true });
+                
+                // Random cầu thủ
+                const ovr = Math.floor(Math.random() * 16) + 60; // 60 -> 75
+                let stats = { PAC: ovr+2, SHO: ovr-2, PAS: ovr+1, DRI: ovr, DEF: ovr, PHY: ovr }; 
+                
+                // Khởi tạo thẻ cầu thủ (chưa lưu vào DB vội, lật thẻ xong mới lưu)
+                pendingGachaPlayer = { 
+                    name: generatePlayerName(false), 
+                    pos: POSITIONS[Math.floor(Math.random() * POSITIONS.length)], 
+                    ovr: recalculateOVR(POSITIONS[0], stats), 
+                    stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, 
+                    stamina: 100, injury: 0, value: ovr * 70000, isListed: false, itemsUsed: 0 
+                };
+                
+                // Thiết lập giao diện Modal Gacha
+                const modal = document.getElementById('gacha-modal');
+                const innerCard = document.getElementById('gacha-card-inner');
+                const resultFace = document.getElementById('gacha-result-face');
+                
+                // Reset card (úp thẻ lại)
+                innerCard.classList.remove('rotate-y-180');
+                document.getElementById('close-gacha-btn').classList.add('hidden');
+                
+                // Lấy màu độ hiếm
+                const rarity = getRarityClass(pendingGachaPlayer.ovr);
+                
+                // Chèn nội dung mặt sau
+                resultFace.className = `absolute inset-0 backface-hidden rotate-y-180 rounded-2xl border-4 ${rarity.border} ${rarity.cardBg} flex flex-col items-center justify-center overflow-hidden`;
+                resultFace.innerHTML = `
+                    <div class="text-[80px] absolute -top-4 -left-2 text-white/10 font-black pointer-events-none">${pendingGachaPlayer.pos}</div>
+                    <img src="https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(pendingGachaPlayer.name.replace(/⭐/g, '').trim())}&backgroundColor=transparent" class="w-32 h-32 object-cover object-top drop-shadow-xl z-10" />
+                    <div class="text-6xl font-black ${rarity.text} drop-shadow-lg z-10 mt-2">${pendingGachaPlayer.ovr}</div>
+                    <div class="text-white font-bold tracking-wider text-xl uppercase mt-1 px-2 text-center z-10">${pendingGachaPlayer.name}</div>
+                    <div class="bg-black/50 text-white/70 text-xs px-3 py-1 rounded-full mt-3 font-bold tracking-widest uppercase z-10">${pendingGachaPlayer.pos}</div>
+                `;
+
+                // Hiện Modal
+                hideLoading();
+                modal.classList.remove('hidden');
+                void modal.offsetWidth;
+                modal.classList.remove('opacity-0');
+                modal.classList.add('opacity-100');
+
+            } catch (e) { showToast("Lỗi!"); hideLoading(); } 
         }
     } else {
         currentItemToApply = item; document.getElementById('apply-item-name').textContent = item.name; const c = document.getElementById('apply-item-list-container'); c.innerHTML = '';
@@ -773,6 +821,50 @@ window.buyItem = async (itemId) => {
         document.getElementById('apply-item-modal').classList.remove('hidden');
     }
 };
+
+// Hàm lật thẻ khi user bấm vào
+window.flipGachaCard = function() {
+    const innerCard = document.getElementById('gacha-card-inner');
+    if(innerCard.classList.contains('rotate-y-180')) return; // Đã lật rồi thì không lật lại
+    
+    window.playHaptic('heavy'); // Điện thoại rung 1 phát rất đã
+    innerCard.classList.add('rotate-y-180'); // Kích hoạt xoay 3D
+    
+    document.getElementById('gacha-title').textContent = "CHÀO MỪNG TÂN BINH!";
+    
+    // Đợi xoay xong thì hiện nút Đóng
+    setTimeout(() => {
+        document.getElementById('close-gacha-btn').classList.remove('hidden');
+    }, 700);
+};
+
+// Hàm đóng Modal & Lưu cầu thủ vào Database
+window.closeGachaModal = async function() {
+    if(!pendingGachaPlayer) return;
+    
+    const modal = document.getElementById('gacha-modal');
+    modal.classList.remove('opacity-100');
+    modal.classList.add('opacity-0');
+    
+    showLoading("ĐANG KÝ HỢP ĐỒNG...");
+    try {
+        const newPlayerRef = doc(collection(db, 'artifacts', appId, 'users', currentUserId, 'players')); 
+        await setDoc(newPlayerRef, pendingGachaPlayer); 
+        pendingGachaPlayer.id = newPlayerRef.id; 
+        
+        globalPlayersList.push(pendingGachaPlayer); 
+        globalPlayersMap[pendingGachaPlayer.id] = pendingGachaPlayer;
+        
+        pendingGachaPlayer = null;
+        showToast(`Đã chiêu mộ thành công!`, 'success');
+    } catch(e) { 
+        showToast("Lỗi khi lưu cầu thủ!"); 
+    } finally { 
+        hideLoading(); 
+        setTimeout(() => { modal.classList.add('hidden'); }, 500);
+    }
+};
+
 window.closeApplyItemModal = () => { document.getElementById('apply-item-modal').classList.add('hidden'); currentItemToApply = null; };
 
 window.applyItemToPlayer = async (playerId) => {
