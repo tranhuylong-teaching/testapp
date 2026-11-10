@@ -67,11 +67,20 @@
             transform: translate(-50%, -50%); box-shadow: 0 0 10px rgba(255,255,255,0.3) inset;
         }
 
-        /* TRONG THẺ <style> của index.html */
         .perspective-1000 { perspective: 1000px; }
         .transform-style-3d { transform-style: preserve-3d; }
         .backface-hidden { backface-visibility: hidden; }
         .rotate-y-180 { transform: rotateY(180deg); }
+
+        /* Hiệu ứng pháo giấy (Confetti) */
+        @keyframes confettiFall {
+            0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+        }
+        .confetti-piece {
+            position: fixed; top: -10px; z-index: 99999;
+            pointer-events: none; animation: confettiFall 3s linear forwards;
+        }
     </style>
 </head>
 <body class="text-white min-h-screen font-sans antialiased relative selection:bg-green-500/30">
