@@ -47,6 +47,25 @@
         .animate-fade-in-scale { 
             animation: fadeInScale 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
         }
+
+        /* Sửa lại sân cỏ trong thẻ <style> của index.html */
+        .football-pitch { 
+            background: linear-gradient(180deg, #064e3b 0%, #022c22 100%); 
+            border: 2px solid rgba(52, 211, 153, 0.5); 
+            box-shadow: 0 0 25px rgba(16, 185, 129, 0.3) inset, 0 5px 15px rgba(0,0,0,0.5);
+            position: relative;
+        }
+        /* Vẽ vạch sân phát sáng */
+        .football-pitch::before {
+            content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 2px;
+            background: rgba(255, 255, 255, 0.3); transform: translateY(-50%);
+            box-shadow: 0 0 10px rgba(255,255,255,0.5);
+        }
+        .football-pitch::after {
+            content: ''; position: absolute; top: 50%; left: 50%; width: 70px; height: 70px;
+            border: 2px solid rgba(255, 255, 255, 0.3); border-radius: 50%; 
+            transform: translate(-50%, -50%); box-shadow: 0 0 10px rgba(255,255,255,0.3) inset;
+        }
     </style>
 </head>
 <body class="text-white min-h-screen font-sans antialiased relative selection:bg-green-500/30">
