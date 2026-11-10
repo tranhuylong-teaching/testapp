@@ -816,7 +816,10 @@ window.buyItem = async (itemId) => {
             } catch (e) { showToast("Lỗi!"); hideLoading(); } 
         }
     } else {
-        currentItemToApply = item; document.getElementById('apply-item-name').textContent = item.name; const c = document.getElementById('apply-item-list-container'); c.innerHTML = '';
+        window.playHaptic('light');
+        currentItemToApply = item; 
+        document.getElementById('apply-item-name').textContent = item.name;
+        const c = document.getElementById('apply-item-list-container'); c.innerHTML = '';
         [...globalPlayersList].sort((a,b) => b.ovr - a.ovr).forEach(p => { const canUse = (p.itemsUsed || 0) < 5; c.innerHTML += `<div class="flex justify-between items-center p-3 hover:bg-slate-700/50 border-b border-slate-700/50 rounded ${canUse ? 'cursor-pointer' : 'opacity-50 grayscale'}" ${canUse ? `onclick="window.applyItemToPlayer('${p.id}')"` : ''}><div><div class="text-white font-medium">${p.name}</div><div class="text-xs text-indigo-300">Đã dùng: ${(p.itemsUsed || 0)}/5</div></div><div class="text-right"><div class="text-green-400 font-bold">OVR ${p.ovr}</div>${!canUse ? `<div class="text-red-400 text-xs">Đạt giới hạn</div>` : ''}</div></div>`; });
         document.getElementById('apply-item-modal').classList.remove('hidden');
     }
