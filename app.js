@@ -164,6 +164,7 @@ window.openSubView = function(subViewId) {
         if(tabTransfer) tabTransfer.click(); 
         renderTransferMarket(); // Nạp dữ liệu chợ ngay khi mở Sub-view
     }
+    if(subViewId === 'stadium') window.renderStadium();
 };
 
 window.closeSubView = function(returnToParent = true) {
@@ -600,7 +601,8 @@ async function processFacilitiesAndStamina() {
         myFacilities.pendingUpgrade.remaining--;
         if (myFacilities.pendingUpgrade.remaining <= 0) {
             let facId = myFacilities.pendingUpgrade.id; myFacilities[facId]++;
-            window.pushNews('Khánh Thành Công Trình', `Trung tâm ${facId === 'medical' ? 'Y tế' : (facId==='training'?'Huấn luyện':(facId==='scouting'?'Tuyển trạch':'Tài chính'))} đã hoàn tất thi công nâng cấp lên Cấp ${myFacilities[facId]}!`, true);
+            let facName = facId === 'medical' ? 'Y tế' : (facId === 'training' ? 'Huấn luyện' : (facId === 'scouting' ? 'Tuyển trạch' : (facId === 'stadium' ? 'Sân vận động' : 'Tài chính')));
+            window.pushNews('Khánh Thành Công Trình', `Hạng mục ${facName} đã hoàn tất thi công nâng cấp lên Cấp ${myFacilities[facId]}!`, true);
             myFacilities.pendingUpgrade = null;
         }
     }
@@ -772,11 +774,28 @@ const startMatchEngine = (opponent, isFriendly) => {
             let cleanSheet = (awayScore === 0) ? (isFriendly ? 20000 : 150000) : 0; 
             let bigWin = (homeScore - awayScore >= 3) ? (isFriendly ? 20000 : 200000) : 0; 
             let sponsorMoney = isFriendly ? 100000 : 0; 
-            let income = perfBonus + cleanSheet + bigWin + sponsorMoney;
+            if(!myFacilities.stadium) myFacilities.stadium = 1;
+            let currentStadium = STADIUM_STATS[myFacilities.stadium - 1];
+            let ticketRevenue = currentStadium.capacity * currentStadium.ticketPrice;
+            if (isFriendly) ticketRevenue = Math.floor(ticketRevenue * 0.3);
+            let income = perfBonus + cleanSheet + bigWin + sponsorMoney + ticketRevenue;
             let financeBonus = Math.floor(income * (myFacilities.finance * 0.05));
             let totalEarnings = matchFee + income + financeBonus;
             
-            logContainer.innerHTML += `<div class="mt-3 mb-2 bg-slate-800 border border-yellow-500/50 p-3 rounded-xl text-xs sm:text-sm shadow-lg"><div class="font-bold text-yellow-400 mb-2 border-b border-slate-700 pb-1 text-center">📊 TÀI CHÍNH TRẬN ĐẤU</div><div class="flex justify-between text-slate-300 py-1"><span>Phí tổ chức:</span><span class="text-red-400">${matchFee < 0 ? '- €50,000' : 'Miễn phí'}</span></div>${sponsorMoney ? `<div class="flex justify-between text-slate-300 py-1"><span>Tài trợ giao hữu:</span><span class="text-green-400">+ €${sponsorMoney.toLocaleString()}</span></div>` : ''}${perfBonus ? `<div class="flex justify-between text-slate-300 py-1"><span>Thưởng thành tích:</span><span class="text-green-400">+ €${perfBonus.toLocaleString()}</span></div>` : ''}${cleanSheet ? `<div class="flex justify-between text-slate-300 py-1"><span>Sạch lưới:</span><span class="text-green-400">+ €${cleanSheet.toLocaleString()}</span></div>` : ''}${bigWin ? `<div class="flex justify-between text-slate-300 py-1"><span>Thắng đậm:</span><span class="text-green-400">+ €${bigWin.toLocaleString()}</span></div>` : ''}<div class="flex justify-between font-bold mt-2 pt-2 border-t border-slate-700 text-sm"><span>Tổng nhận (+€${financeBonus.toLocaleString()} Từ TT Tài chính):</span><span class="${totalEarnings > 0 ? 'text-green-400' : 'text-red-400'}">${totalEarnings > 0 ? '+' : ''} €${totalEarnings.toLocaleString()}</span></div></div>`;
+            logContainer.innerHTML += `<div class="mt-3 mb-2 bg-slate-800 border border-yellow-500/50 p-3 rounded-xl text-xs sm:text-sm shadow-lg">
+                <div class="font-bold text-yellow-400 mb-2 border-b border-slate-700 pb-1 text-center">📊 TÀI CHÍNH TRẬN ĐẤU</div>
+                <div class="flex justify-between text-slate-300 py-1">
+                    <span>Phí tổ chức:</span><span class="text-red-400">${matchFee < 0 ? '- €50,000' : 'Miễn phí'}</span>
+                </div>
+                ${sponsorMoney ? `<div class="flex justify-between text-slate-300 py-1"><span>Tài trợ giao hữu:</span><span class="text-green-400">+ €${sponsorMoney.toLocaleString()}</span></div>` : ''}
+                ${ticketRevenue ? `<div class="flex justify-between text-slate-300 py-1"><span>Doanh thu Bán vé:</span><span class="text-green-400">+ €${ticketRevenue.toLocaleString()}</span></div>` : ''}
+                ${perfBonus ? `<div class="flex justify-between text-slate-300 py-1"><span>Thưởng thành tích:</span><span class="text-green-400">+ €${perfBonus.toLocaleString()}</span></div>` : ''}
+                ${cleanSheet ? `<div class="flex justify-between text-slate-300 py-1"><span>Sạch lưới:</span><span class="text-green-400">+ €${cleanSheet.toLocaleString()}</span></div>` : ''}
+                ${bigWin ? `<div class="flex justify-between text-slate-300 py-1"><span>Thắng đậm:</span><span class="text-green-400">+ €${bigWin.toLocaleString()}</span></div>` : ''}
+                <div class="flex justify-between font-bold mt-2 pt-2 border-t border-slate-700 text-sm">
+                    <span>Tổng nhận (+€${financeBonus.toLocaleString()} Từ TT Tài chính):</span><span class="${totalEarnings > 0 ? 'text-green-400' : 'text-red-400'}">${totalEarnings > 0 ? '+' : ''} €${totalEarnings.toLocaleString()}</span>
+                </div>
+            </div>`;
             logContainer.scrollTop = logContainer.scrollHeight;
             setTimeout(() => { const liveMatchView = document.getElementById('match-live'); liveMatchView.scrollTop = liveMatchView.scrollHeight; }, 300);
 
@@ -870,3 +889,92 @@ document.getElementById('quick-play-btn')?.addEventListener('click', () => {
     if (leagueState.currentRound > 31) { showToast("Mùa giải đã kết thúc! Vui lòng bắt đầu mùa mới.", "warning"); switchView('league'); return; }
     switchView('league'); document.getElementById('dashboard-section').scrollIntoView({ behavior: "smooth" });
 });
+
+// ================= MODULE SÂN VẬN ĐỘNG =================
+// Thông số các cấp độ của Sân
+const STADIUM_STATS = [
+    { level: 1, name: 'Sân Tập Khu Phố', capacity: 2000, ticketPrice: 15, img: '🥅', upgradeCost: 0, upgradeTime: 0 },
+    { level: 2, name: 'Sân Vận Động Địa Phương', capacity: 10000, ticketPrice: 20, img: '🏟️', upgradeCost: 5000000, upgradeTime: 2 },
+    { level: 3, name: 'Sân Vận Động Tỉnh', capacity: 25000, ticketPrice: 25, img: '🏟️', upgradeCost: 15000000, upgradeTime: 4 },
+    { level: 4, name: 'Sân Vận Động Quốc Gia', capacity: 50000, ticketPrice: 35, img: '🏟️', upgradeCost: 35000000, upgradeTime: 7 },
+    { level: 5, name: 'Thánh Địa Châu Á', capacity: 90000, ticketPrice: 50, img: '🏛️', upgradeCost: 80000000, upgradeTime: 10 }
+];
+
+window.renderStadium = function() {
+    const container = document.getElementById('stadium-container');
+    if(!container) return;
+    
+    // Khởi tạo cấp 1 nếu tài khoản cũ chưa có data
+    if(!myFacilities.stadium) myFacilities.stadium = 1;
+    
+    const currentLvl = myFacilities.stadium;
+    const currentStat = STADIUM_STATS[currentLvl - 1];
+    const nextStat = currentLvl < 5 ? STADIUM_STATS[currentLvl] : null;
+    
+    let actionHtml = '';
+    if (myFacilities.pendingUpgrade && myFacilities.pendingUpgrade.id === 'stadium') {
+        actionHtml = `<button disabled class="w-full py-3 bg-yellow-700 text-yellow-200 font-bold text-sm rounded-xl cursor-not-allowed shadow-lg">Đang thi công (${myFacilities.pendingUpgrade.remaining} trận)</button>`;
+    } else if (myFacilities.pendingUpgrade) {
+        actionHtml = `<button disabled class="w-full py-3 bg-slate-700 text-slate-400 font-bold text-sm rounded-xl cursor-not-allowed">Chờ công trình Y tế/Huấn luyện thi công xong</button>`;
+    } else if (!nextStat) {
+        actionHtml = `<button disabled class="w-full py-3 bg-gradient-to-r from-orange-600 to-red-600 text-white font-bold text-sm rounded-xl cursor-not-allowed shadow-lg">Đã đạt chuẩn cao nhất (Max Lv.5)</button>`;
+    } else {
+        actionHtml = `<button onclick="window.upgradeFacility('stadium', ${nextStat.upgradeCost}, ${nextStat.upgradeTime}); window.renderStadium();" class="w-full py-3 bg-gradient-to-r from-orange-600 to-amber-500 hover:from-orange-500 hover:to-amber-400 text-white font-bold text-sm rounded-xl shadow-lg transition">Nâng cấp Khán đài: €${(nextStat.upgradeCost/1000000).toFixed(1)}M (${nextStat.upgradeTime} trận)</button>`;
+    }
+
+    container.innerHTML = `
+        <!-- Bảng Thông số hiện tại -->
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl flex flex-col items-center text-center relative overflow-hidden">
+            <div class="absolute -top-10 -right-10 text-9xl opacity-5 pointer-events-none">🏟️</div>
+            <div class="text-6xl md:text-7xl mb-4 drop-shadow-[0_0_15px_rgba(249,115,22,0.4)] z-10">${currentStat.img}</div>
+            <h3 class="text-2xl font-bold text-orange-400 mb-1 z-10">${currentStat.name}</h3>
+            <span class="bg-orange-900/50 text-orange-300 text-[10px] uppercase font-bold px-3 py-1 rounded-full border border-orange-500/50 mb-6 z-10">Cấp độ ${currentLvl}</span>
+            
+            <div class="w-full bg-slate-900/80 rounded-xl p-4 border border-slate-700 space-y-3 z-10">
+                <div class="flex justify-between items-center border-b border-slate-700/50 pb-2">
+                    <span class="text-slate-400 text-sm">Sức chứa tối đa:</span>
+                    <span class="font-bold text-white">${currentStat.capacity.toLocaleString()} ghế</span>
+                </div>
+                <div class="flex justify-between items-center border-b border-slate-700/50 pb-2">
+                    <span class="text-slate-400 text-sm">Giá vé trung bình:</span>
+                    <span class="font-bold text-green-400">€${currentStat.ticketPrice}</span>
+                </div>
+                <div class="flex justify-between items-center">
+                    <span class="text-slate-400 text-sm">Doanh thu dự kiến:</span>
+                    <span class="font-bold text-yellow-400">€${(currentStat.capacity * currentStat.ticketPrice).toLocaleString()}/trận</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bảng Kế hoạch nâng cấp -->
+        <div class="bg-slate-800 border border-slate-700 rounded-2xl p-6 shadow-xl flex flex-col justify-between">
+            <div>
+                <h3 class="text-lg md:text-xl font-bold text-white mb-4 border-b border-slate-700 pb-2 flex items-center gap-2">🚧 Dự án Mở rộng</h3>
+                ${nextStat ? `
+                    <p class="text-sm text-slate-400 mb-6 leading-relaxed">Đầu tư nâng cấp mặt cỏ và xây thêm khán đài để đón lượng lớn người hâm mộ. SVĐ càng lớn, nguồn thu tài chính càng ổn định.</p>
+                    <div class="space-y-4 mb-6 text-sm bg-slate-900/50 p-4 rounded-xl border border-slate-700/50">
+                        <div class="flex justify-between items-center text-slate-300">
+                            <span>Mở rộng thêm:</span>
+                            <span class="font-bold text-green-400">⬆ ${(nextStat.capacity - currentStat.capacity).toLocaleString()} ghế</span>
+                        </div>
+                        <div class="flex justify-between items-center text-slate-300">
+                            <span>Tăng doanh thu:</span>
+                            <span class="font-bold text-green-400">⬆ €${((nextStat.capacity * nextStat.ticketPrice) - (currentStat.capacity * currentStat.ticketPrice)).toLocaleString()}</span>
+                        </div>
+                        <div class="flex justify-between items-center text-slate-300">
+                            <span>Thời gian thi công:</span>
+                            <span class="font-bold text-yellow-400">⏳ ${nextStat.upgradeTime} trận</span>
+                        </div>
+                    </div>
+                ` : `
+                    <div class="flex flex-col items-center justify-center h-48 text-center bg-slate-900/50 rounded-xl border border-slate-700/50 p-4">
+                        <div class="text-5xl mb-3 text-yellow-400 animate-pulse">👑</div>
+                        <p class="text-slate-300 font-bold mb-1">Sân vận động đạt chuẩn FIFA cao nhất.</p>
+                        <p class="text-slate-500 text-sm">Không thể mở rộng quy mô thêm nữa.</p>
+                    </div>
+                `}
+            </div>
+            <div>${actionHtml}</div>
+        </div>
+    `;
+};
