@@ -532,7 +532,12 @@ window.openPlayerDetail = function(playerId) {
             <div class="col-span-2 grid grid-cols-2 gap-2 mt-1">
                 <button onclick="window.listPlayerForSale()" class="py-2.5 bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 text-white rounded-xl font-bold shadow-lg transition text-[10px] uppercase tracking-wider">Lên TTCN</button>
                 <button onclick="window.terminateContract()" class="py-2.5 bg-black/40 border border-red-500/30 text-red-400 hover:bg-red-900/80 rounded-xl font-bold transition text-[10px] uppercase tracking-wider">Thanh lý</button>
-            </div>`; 
+            </div>
+            <!-- BỔ SUNG NÚT ÉP THẺ TẠI ĐÂY -->
+            <button onclick="window.openFuseModal('${p.id}')" class="col-span-2 mt-2 w-full py-3 bg-gradient-to-r from-fuchsia-700 to-pink-600 hover:from-fuchsia-600 hover:to-pink-500 text-white rounded-xl font-black shadow-[0_0_15px_rgba(217,70,239,0.5)] transition text-xs uppercase tracking-widest flex justify-center items-center gap-2">
+                <span>🔥</span> ÉP THẺ NÂNG CẤP <span>🔥</span>
+            </button>
+        `; 
     }
 
     // 6. Kích hoạt hiệu ứng Fade In
@@ -541,6 +546,149 @@ window.openPlayerDetail = function(playerId) {
     void modal.offsetWidth; // Bắt buộc Browser vẽ lại trước khi đổi opacity
     modal.classList.remove('opacity-0');
     modal.classList.add('opacity-100');
+};
+
+let currentFuseTargetId = null;
+
+// Hàm mở danh sách Phôi
+window.openFuseModal = function(targetId) {
+    const targetPlayer = globalPlayersMap[targetId];
+    if(!targetPlayer) return;
+    currentFuseTargetId = targetId;
+    
+    document.getElementById('fuse-target-name').textContent = `${targetPlayer.name} (${targetPlayer.ovr})`;
+    const container = document.getElementById('fuse-list-container');
+    container.innerHTML = '';
+
+    // Lọc phôi: Không phải bản thân, không nằm ở viện/tập luyện, không đá chính, không bán trên TTCN
+    let fodderCandidates = globalPlayersList.filter(p => 
+        p.id !== targetId && 
+        !p.isListed && 
+        !myFacilities.medicalSlots.includes(p.id) && 
+        !myFacilities.trainingSlots.includes(p.id) && 
+        !startingXI.includes(p.id)
+    );
+
+    if(fodderCandidates.length === 0) {
+        container.innerHTML = `<div class="text-center text-slate-500 p-6 italic text-sm">Không có cầu thủ phôi hợp lệ (Cần rút khỏi Đội hình chính/Y tế trước).</div>`;
+    } else {
+        // Sắp xếp phôi từ thấp đến cao để tránh lỡ tay bấm nhầm siêu sao
+        fodderCandidates.sort((a, b) => a.ovr - b.ovr).forEach(fodder => {
+            // Tỷ lệ = 50% cơ bản + (Chênh lệch OVR * 5)
+            // Ví dụ: Target 70, Fodder 65 -> Diff = -5 -> Tỷ lệ = 50 - 25 = 25%
+            let diff = fodder.ovr - targetPlayer.ovr;
+            let successRate = Math.max(5, Math.min(100, 50 + (diff * 5))); 
+            
+            let rateColor = successRate >= 70 ? 'text-green-400' : (successRate >= 40 ? 'text-yellow-400' : 'text-red-500');
+            const cost = 200000; // Phí mỗi lần ép thẻ cố định 200k
+
+            container.innerHTML += `
+                <div class="flex justify-between items-center p-3 mb-2 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 rounded-xl transition cursor-pointer" onclick="window.executeFuse('${fodder.id}', ${successRate}, ${cost})">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 bg-slate-900 rounded-full flex items-center justify-center font-bold ${getRarityClass(fodder.ovr).text} border border-slate-600">
+                            ${fodder.ovr}
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-white text-sm font-bold">${fodder.name}</span>
+                            <span class="text-[10px] text-slate-400 uppercase tracking-wider">${fodder.pos}</span>
+                        </div>
+                    </div>
+                    <div class="flex flex-col items-end">
+                        <div class="text-[10px] text-slate-400">Tỷ lệ: <span class="font-black text-sm ${rateColor}">${successRate}%</span></div>
+                        <div class="text-[10px] text-yellow-400 font-bold">-€${(cost/1000).toFixed(0)}k</div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    // Đóng thẻ detail cũ và mở lò luyện
+    document.getElementById('player-detail-modal').classList.add('hidden');
+    
+    const modal = document.getElementById('fuse-player-modal');
+    modal.classList.remove('hidden');
+    void modal.offsetWidth;
+    modal.classList.remove('opacity-0');
+    modal.classList.add('opacity-100');
+};
+
+window.closeFuseModal = function() {
+    const modal = document.getElementById('fuse-player-modal');
+    modal.classList.remove('opacity-100');
+    modal.classList.add('opacity-0');
+    setTimeout(() => { modal.classList.add('hidden'); }, 300);
+};
+
+// Hàm chốt đơn đập thẻ
+window.executeFuse = async function(fodderId, successRate, cost) {
+    if(myBudget < cost) { showToast("Không đủ kinh phí ép thẻ!", "error"); return; }
+    
+    const target = globalPlayersMap[currentFuseTargetId];
+    const fodder = globalPlayersMap[fodderId];
+    if(!target || !fodder) return;
+
+    if(!confirm(`Xác nhận dùng ${fodder.name} (OVR ${fodder.ovr}) làm phôi?\nCầu thủ này sẽ BỊ XÓA vĩnh viễn!\nTỷ lệ thành công: ${successRate}%\nPhí: €${cost.toLocaleString()}`)) return;
+
+    showLoading("ĐANG ÉP THẺ...");
+    if(typeof window.playHaptic === 'function') window.playHaptic('heavy');
+    
+    try {
+        // 1. Trừ tiền
+        myBudget -= cost;
+        
+        // 2. Roll tỷ lệ (Quay Gacha số)
+        const roll = Math.random() * 100;
+        const isSuccess = roll <= successRate;
+
+        // 3. Tiến hành Xóa phôi khỏi Database
+        await deleteDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', fodder.id));
+        globalPlayersList = globalPlayersList.filter(x => x.id !== fodder.id); 
+        delete globalPlayersMap[fodder.id];
+        
+        if (isSuccess) {
+            // Tăng 2 chỉ số ngẫu nhiên lên +2
+            const statsKeys = ['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY']; 
+            let buffLog = [];
+            for(let i=0; i<2; i++) {
+                let rStat = statsKeys[Math.floor(Math.random() * statsKeys.length)];
+                if(target.stats[rStat] < 99) {
+                    target.stats[rStat] = Math.min(99, target.stats[rStat] + 2);
+                    buffLog.push(`+2 ${rStat}`);
+                }
+            }
+            
+            // Tính lại OVR và Giá trị
+            target.ovr = recalculateOVR(target.pos, target.stats); 
+            target.value = target.ovr * 120000; // Giá trị thẻ ép sẽ cao hơn thẻ thường một chút
+            
+            // Cập nhật Database Target
+            await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', target.id), { 
+                stats: target.stats, ovr: target.ovr, value: target.value 
+            }, { merge: true });
+
+            showToast(`🔥 ÉP THÀNH CÔNG! ${target.name} tăng OVR lên ${target.ovr} (${buffLog.join(', ')})!`, 'success');
+            if(typeof window.playHaptic === 'function') { window.playHaptic('heavy'); setTimeout(()=>window.playHaptic('heavy'), 200); }
+            
+            // Ghi log vào hộp thư
+            window.pushNews('Đột phá giới hạn', `Tiền đạo ${target.name} vừa đột phá giới hạn thành công sau khóa huấn luyện đặc biệt, đạt mốc OVR ${target.ovr}!`, true);
+        } else {
+            showToast(`💀 THẤT BẠI! Phôi ${fodder.name} đã bốc hơi, ${target.name} không tăng chỉ số.`, 'error');
+        }
+
+        // Lưu thông tin ngân sách và hộp thư
+        await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { budget: myBudget, news: newsInbox }, { merge: true });
+        updateHeaderDisplay();
+        
+        // Reset giao diện
+        window.closeFuseModal();
+        if(activeSubView === 'squad-list') renderSquadList(); 
+        if(activeSubView === 'tactics') renderPitch();
+
+    } catch(e) {
+        showToast("Lỗi kết nối khi ép thẻ!", "error");
+    } finally {
+        hideLoading();
+    }
 };
 
 // Cập nhật sự kiện nút Đóng với hiệu ứng Fade Out
