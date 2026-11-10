@@ -30,10 +30,30 @@ const STORE_ITEMS = [
 
 function toggleNavLock(isLocked) { document.querySelectorAll('aside nav, nav.fixed').forEach(n => isLocked ? n.classList.add('pointer-events-none', 'opacity-50') : n.classList.remove('pointer-events-none', 'opacity-50')); }
 function getRarityClass(ovr) {
-    if (ovr >= 90) return { text: 'text-fuchsia-400 drop-shadow-[0_0_5px_rgba(232,121,249,0.8)]', bg: 'bg-fuchsia-900', border: 'border-fuchsia-500 shadow-[0_0_15px_rgba(232,121,249,0.5)]' };
-    if (ovr >= 80) return { text: 'text-yellow-400', bg: 'bg-yellow-900/50', border: 'border-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.3)]' };
-    if (ovr >= 65) return { text: 'text-slate-300', bg: 'bg-slate-700', border: 'border-slate-400' };
-    return { text: 'text-orange-600', bg: 'bg-orange-950', border: 'border-orange-700' };
+    if (ovr >= 90) return { 
+        text: 'text-fuchsia-100 drop-shadow-[0_0_5px_rgba(232,121,249,0.8)]', 
+        bg: 'bg-fuchsia-900', 
+        border: 'border-fuchsia-400 shadow-[0_0_15px_rgba(232,121,249,0.5)]',
+        cardBg: 'bg-gradient-to-br from-fuchsia-900 via-purple-900 to-slate-950'
+    };
+    if (ovr >= 80) return { 
+        text: 'text-yellow-100 drop-shadow-[0_0_5px_rgba(250,204,21,0.8)]', 
+        bg: 'bg-yellow-900/50', 
+        border: 'border-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.3)]',
+        cardBg: 'bg-gradient-to-br from-yellow-800 via-amber-900 to-slate-950'
+    };
+    if (ovr >= 65) return { 
+        text: 'text-slate-100', 
+        bg: 'bg-slate-700', 
+        border: 'border-slate-400',
+        cardBg: 'bg-gradient-to-br from-slate-700 via-slate-800 to-slate-950'
+    };
+    return { 
+        text: 'text-orange-100', 
+        bg: 'bg-orange-950', 
+        border: 'border-orange-700',
+        cardBg: 'bg-gradient-to-br from-orange-900 via-red-950 to-slate-950'
+    };
 }
 
 function updateHeaderDisplay() {
@@ -367,25 +387,132 @@ function renderSquadList() {
     });
 }
 
-window.openPlayerDetail = (playerId) => {
-    const p = globalPlayersMap[playerId]; if(!p) return; currentlyViewingPlayerId = playerId; const rarity = getRarityClass(p.ovr);
-    const av = document.querySelector('#player-detail-modal .rounded-full.mx-auto'); if (av) { av.innerHTML = `<img src="https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(p.name.replace(/⭐/g, '').trim())}&backgroundColor=transparent" class="w-full h-full object-cover bg-slate-200" />`; av.className = `w-20 h-20 md:w-24 md:h-24 border-4 rounded-full mx-auto mb-3 flex items-center justify-center overflow-hidden shadow-lg transition-all ${rarity.border} ${rarity.bg}`; }
-    document.getElementById('detail-name').textContent = p.name; document.getElementById('detail-name').className = `text-xl md:text-2xl font-bold mb-1 ${rarity.text}`;
-    document.getElementById('detail-pos').textContent = p.pos; document.getElementById('detail-pos').className = `${POS_COLORS[p.pos]} text-white text-[10px] md:text-xs font-bold px-2 py-1 rounded`; 
-    document.getElementById('detail-ovr').textContent = p.ovr; document.getElementById('detail-ovr').className = `text-lg md:text-xl font-bold ${rarity.text}`; document.getElementById('detail-items-used').textContent = p.itemsUsed || 0;
-    ['pac','sho','pas','dri','def','phy'].forEach(s => { const S = s.toUpperCase(); const total = p.stats[S] || 0; const bonus = p.bonusStats[S] || 0; const base = total - bonus; const el = document.getElementById(`detail-${s}`); if (bonus > 0) el.innerHTML = `${base} <span class="text-green-400 font-bold ml-1">+${bonus}</span>`; else el.textContent = total; });
+// Khai báo biến toàn cục lưu chart để tránh lỗi vẽ đè
+let playerChartInstance = null;
+
+window.openPlayerDetail = function(playerId) {
+    const p = globalPlayersMap[playerId]; if(!p) return; 
+    currentlyViewingPlayerId = playerId; 
+    const rarity = getRarityClass(p.ovr);
+    
+    // 1. Áp dụng nền Gradient và Viền cho toàn bộ Thẻ
+    const cardContainer = document.getElementById('player-card-container');
+    cardContainer.className = `w-full max-w-[340px] rounded-3xl border-2 ${rarity.border} ${rarity.cardBg} shadow-[0_15px_50px_rgba(0,0,0,0.6)] relative overflow-hidden flex flex-col max-h-[90vh] transition-all duration-300 transform scale-100`;
+
+    // 2. Avatar to và nổi khối
+    const av = document.getElementById('detail-avatar-container');
+    if (av) {
+        av.innerHTML = `<img src="https://api.dicebear.com/7.x/adventurer/svg?seed=${encodeURIComponent(p.name.replace(/⭐/g, '').trim())}&backgroundColor=transparent" class="w-[120%] h-[120%] object-cover object-top drop-shadow-xl" loading="lazy" />`;
+        av.className = `w-28 h-28 bg-transparent border-b-4 ${rarity.border.split(' ')[0]} rounded-b-3xl flex items-end justify-center overflow-hidden drop-shadow-2xl z-10 relative`;
+    }
+
+    // 3. Đổ dữ liệu Text
+    document.getElementById('detail-bg-pos').textContent = p.pos;
+    document.getElementById('detail-name').textContent = p.name;
+    document.getElementById('detail-name').className = `text-xl md:text-2xl font-bold tracking-wider uppercase drop-shadow-md mb-1 border-b border-white/20 pb-2 inline-block px-4 ${rarity.text}`;
+    document.getElementById('detail-pos').textContent = p.pos;
+    document.getElementById('detail-ovr').textContent = p.ovr;
+    document.getElementById('detail-ovr').className = `text-6xl font-black drop-shadow-lg ${rarity.text} leading-none`;
+    document.getElementById('detail-items-used').textContent = p.itemsUsed || 0;
     document.getElementById('detail-value').textContent = `€${(p.value || p.ovr*100000).toLocaleString()}`;
-    let stDiv = document.getElementById('detail-stamina-bar'); if (!stDiv) { stDiv = document.createElement('div'); stDiv.id = 'detail-stamina-bar'; stDiv.className = 'mt-2 mb-2 flex flex-col items-center justify-center'; const pM = document.getElementById('sell-player-container').parentElement; pM.insertBefore(stDiv, document.getElementById('sell-player-container')); }
-    if(p.injury > 0) stDiv.innerHTML = `<div class="text-[11px] md:text-sm font-bold text-red-500 mb-1">🚑 Đang chấn thương (Còn ${p.injury} vòng)</div>`; else stDiv.innerHTML = `<div class="text-[11px] md:text-sm text-slate-300 mb-1">Thể lực hiện tại: <span class="font-bold ${p.stamina >= 80 ? 'text-green-400' : (p.stamina >= 50 ? 'text-yellow-400' : 'text-red-400')}">${p.stamina}%</span></div><div class="w-3/4 bg-slate-700 h-2 rounded-full overflow-hidden mb-2"><div class="${p.stamina >= 80 ? 'bg-green-400' : (p.stamina >= 50 ? 'bg-yellow-400' : 'bg-red-500')} h-full transition-all" style="width: ${p.stamina}%"></div></div>`;
-    const sCont = document.getElementById('sell-player-container'); let fBtn = '';
-    if (myFacilities.medicalSlots.includes(p.id)) fBtn = `<button onclick="window.removeFromFacility('${p.id}', 'medical')" class="w-full py-1.5 md:py-2 bg-yellow-900/80 hover:bg-yellow-800 text-yellow-300 border border-yellow-700 rounded font-bold transition mb-2 text-xs md:text-sm">Đưa ra khỏi TT Y tế</button>`; 
-    else if (myFacilities.trainingSlots.includes(p.id)) fBtn = `<button onclick="window.removeFromFacility('${p.id}', 'training')" class="w-full py-1.5 md:py-2 bg-blue-900/80 hover:bg-blue-800 text-blue-300 border border-blue-700 rounded font-bold transition mb-2 text-xs md:text-sm">Đưa ra khỏi TT Huấn luyện</button>`; 
-    else { if (p.injury > 0 || p.stamina < 100) fBtn += `<button onclick="window.assignToFacility('${p.id}', 'medical')" class="w-full py-1.5 md:py-2 bg-green-900/50 hover:bg-green-800 text-green-400 border border-green-700 rounded font-bold transition mb-2 text-xs md:text-sm">🏥 Đưa vào Y tế</button>`; if (p.injury === 0) fBtn += `<button onclick="window.assignToFacility('${p.id}', 'training')" class="w-full py-1.5 md:py-2 bg-blue-900/50 hover:bg-blue-800 text-blue-400 border border-blue-700 rounded font-bold transition mb-2 text-xs md:text-sm">🏋️ Đưa vào Huấn luyện</button>`; }
-    if (p.isListed) sCont.innerHTML = fBtn + `<button disabled class="w-full py-1.5 md:py-2 bg-slate-700 text-slate-400 rounded font-bold cursor-not-allowed mt-2 text-xs md:text-sm">Chờ Bán</button>`; 
-    else sCont.innerHTML = fBtn + `<button onclick="window.listPlayerForSale()" class="w-full py-1.5 md:py-2 bg-red-600 hover:bg-red-500 text-white rounded font-bold shadow-lg transition mt-2 mb-2 text-xs md:text-sm">Đưa lên TTCN</button><button onclick="window.terminateContract()" class="w-full py-1.5 bg-transparent border border-red-800 text-red-500 hover:bg-red-900/30 rounded transition text-xs md:text-sm">Thanh lý</button>`; 
-    document.getElementById('player-detail-modal').classList.remove('hidden');
+
+    // 4. Vẽ Radar Chart (Biểu đồ lục giác)
+    const ctx = document.getElementById('playerRadarChart');
+    if(playerChartInstance) playerChartInstance.destroy();
+    
+    // Trật tự chỉ số: PAC (Tốc độ), SHO (Sút), PAS (Chuyền), DEF (Thủ), PHY (Thể chất), DRI (Rê bóng)
+    const pStats = [ p.stats.PAC, p.stats.SHO, p.stats.PAS, p.stats.DEF, p.stats.PHY, p.stats.DRI ];
+    
+    // Lấy màu chủ đạo dựa trên độ hiếm
+    let chartColor = '#f97316'; // orange
+    if (p.ovr >= 90) chartColor = '#d946ef'; // fuchsia
+    else if (p.ovr >= 80) chartColor = '#facc15'; // yellow
+    else if (p.ovr >= 65) chartColor = '#cbd5e1'; // slate
+
+    playerChartInstance = new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: ['PAC', 'SHO', 'PAS', 'DEF', 'PHY', 'DRI'],
+            datasets: [{
+                data: pStats,
+                backgroundColor: chartColor + '50', // Thêm opacity hex
+                borderColor: chartColor,
+                pointBackgroundColor: '#fff',
+                pointBorderColor: chartColor,
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: chartColor,
+                borderWidth: 2,
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            scales: {
+                r: {
+                    angleLines: { color: 'rgba(255, 255, 255, 0.2)' },
+                    grid: { color: 'rgba(255, 255, 255, 0.2)' },
+                    pointLabels: { color: 'rgba(255, 255, 255, 0.9)', font: { size: 10, weight: 'bold', family: "'Inter', sans-serif" } },
+                    ticks: { display: false, min: 0, max: 100 }
+                }
+            },
+            plugins: { legend: { display: false }, tooltip: { enabled: true } }
+        }
+    });
+
+    // 5. Thanh Thể lực & Nút bấm
+    let stDiv = document.getElementById('detail-stamina-bar');
+    if(p.injury > 0) {
+        stDiv.innerHTML = `<div class="text-xs font-bold text-red-400 bg-red-950/80 p-2 rounded-xl text-center border border-red-500/50 mb-3 drop-shadow-md">🚑 Chấn thương (${p.injury} vòng)</div>`;
+    } else {
+        stDiv.innerHTML = `
+            <div class="flex justify-between text-[10px] text-white/70 mb-1 uppercase tracking-widest font-bold">
+                <span>Thể lực</span><span class="${p.stamina >= 80 ? 'text-green-400' : (p.stamina >= 50 ? 'text-yellow-400' : 'text-red-400')}">${p.stamina}%</span>
+            </div>
+            <div class="w-full bg-black/60 h-2.5 rounded-full overflow-hidden border border-white/10 mb-3">
+                <div class="${p.stamina >= 80 ? 'bg-green-500 shadow-[0_0_10px_#22c55e]' : (p.stamina >= 50 ? 'bg-yellow-500' : 'bg-red-500')} h-full transition-all duration-500" style="width: ${p.stamina}%"></div>
+            </div>`;
+    }
+
+    const sCont = document.getElementById('sell-player-container'); 
+    let fBtn = '';
+    if (myFacilities.medicalSlots.includes(p.id)) fBtn = `<button onclick="window.removeFromFacility('${p.id}', 'medical')" class="col-span-2 py-2.5 bg-gradient-to-r from-yellow-700 to-yellow-600 hover:from-yellow-600 text-white rounded-xl font-bold shadow-lg transition text-xs uppercase tracking-wider">Thoát Y tế</button>`; 
+    else if (myFacilities.trainingSlots.includes(p.id)) fBtn = `<button onclick="window.removeFromFacility('${p.id}', 'training')" class="col-span-2 py-2.5 bg-gradient-to-r from-blue-700 to-blue-600 hover:from-blue-600 text-white rounded-xl font-bold shadow-lg transition text-xs uppercase tracking-wider">Thoát Huấn luyện</button>`; 
+    else { 
+        if (p.injury > 0 || p.stamina < 100) fBtn += `<button onclick="window.assignToFacility('${p.id}', 'medical')" class="py-2.5 bg-green-900/60 hover:bg-green-700 text-green-300 border border-green-500/50 rounded-xl font-bold transition text-[10px] uppercase tracking-wider flex flex-col items-center justify-center gap-1"><span class="text-lg leading-none">🏥</span>Y Tế</button>`; 
+        if (p.injury === 0) fBtn += `<button onclick="window.assignToFacility('${p.id}', 'training')" class="py-2.5 bg-blue-900/60 hover:bg-blue-700 text-blue-300 border border-blue-500/50 rounded-xl font-bold transition text-[10px] uppercase tracking-wider flex flex-col items-center justify-center gap-1"><span class="text-lg leading-none">🏋️</span>Tập Luyện</button>`; 
+    }
+    
+    if (p.isListed) {
+        sCont.innerHTML = fBtn + `<button disabled class="col-span-2 py-2.5 bg-slate-800 text-slate-500 rounded-xl font-bold cursor-not-allowed mt-1 text-xs uppercase tracking-wider shadow-inner">Đang Chờ Bán</button>`; 
+    } else { 
+        sCont.innerHTML = fBtn + `
+            <div class="col-span-2 grid grid-cols-2 gap-2 mt-1">
+                <button onclick="window.listPlayerForSale()" class="py-2.5 bg-gradient-to-r from-red-700 to-red-600 hover:from-red-600 text-white rounded-xl font-bold shadow-lg transition text-[10px] uppercase tracking-wider">Lên TTCN</button>
+                <button onclick="window.terminateContract()" class="py-2.5 bg-black/40 border border-red-500/30 text-red-400 hover:bg-red-900/80 rounded-xl font-bold transition text-[10px] uppercase tracking-wider">Thanh lý</button>
+            </div>`; 
+    }
+
+    // 6. Kích hoạt hiệu ứng Fade In
+    const modal = document.getElementById('player-detail-modal');
+    modal.classList.remove('hidden');
+    void modal.offsetWidth; // Bắt buộc Browser vẽ lại trước khi đổi opacity
+    modal.classList.remove('opacity-0');
+    modal.classList.add('opacity-100');
 };
-document.getElementById('close-detail-modal')?.addEventListener('click', () => { document.getElementById('player-detail-modal').classList.add('hidden'); });
+
+// Cập nhật sự kiện nút Đóng với hiệu ứng Fade Out
+document.getElementById('close-detail-modal')?.addEventListener('click', function() { 
+    const modal = document.getElementById('player-detail-modal');
+    const cardContainer = document.getElementById('player-card-container');
+    
+    modal.classList.remove('opacity-100');
+    modal.classList.add('opacity-0');
+    cardContainer.classList.remove('scale-100');
+    cardContainer.classList.add('scale-95');
+    
+    setTimeout(function() {
+        modal.classList.add('hidden');
+    }, 300); // 300ms khớp với duration-300 ở class HTML
+});
 
 function calcTeamPower() {
     let totalOVR = 0, count = 0, uAtt = 0, uAttC = 0, uMid = 0, uMidC = 0, uDef = 0, uDefC = 0;
