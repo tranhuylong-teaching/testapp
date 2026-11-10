@@ -184,17 +184,37 @@ function renderClubDashboard() {
     });
 }
 
+// 1. HÀM CHUYỂN TAB CHÍNH
 function switchView(v) {
     window.closeSubView(false);
     TABS.forEach(id => { 
-        const vEl = document.getElementById(`view-${id}`); if(vEl) vEl.classList.add('hidden'); 
-        const nEl = document.getElementById(`nav-${id}`); if(nEl) nEl.className = "block px-4 py-3 hover:bg-slate-800 text-slate-300 rounded-lg border border-transparent";
-        const mEl = document.getElementById(`nav-${id}-mob`); if(mEl) mEl.className = "flex flex-col items-center text-slate-400 hover:text-white transition-colors";
+        const vEl = document.getElementById(`view-${id}`); 
+        if(vEl) {
+            vEl.classList.add('hidden'); 
+            vEl.classList.remove('animate-fade-in-scale'); // Gỡ hiệu ứng cũ
+        }
+        
+        const nEl = document.getElementById(`nav-${id}`); 
+        if(nEl) nEl.className = "block px-4 py-3 hover:bg-slate-800 text-slate-300 rounded-lg border border-transparent";
+        
+        const mEl = document.getElementById(`nav-${id}-mob`); 
+        if(mEl) mEl.className = "flex flex-col items-center text-slate-400 hover:text-white transition-colors";
     });
-    const viewV = document.getElementById(`view-${v}`); if(viewV) viewV.classList.remove('hidden'); 
-    const aNav = document.getElementById(`nav-${v}`); if(aNav) aNav.className = "block px-4 py-3 bg-green-900/40 text-green-400 font-medium rounded-lg border border-green-900/50";
-    const aMob = document.getElementById(`nav-${v}-mob`); if(aMob) aMob.className = "flex flex-col items-center text-green-400 transition-colors";
-
+    
+    const viewV = document.getElementById(`view-${v}`); 
+    if(viewV) {
+        viewV.classList.remove('hidden'); 
+        // Kích hoạt lại hiệu ứng
+        void viewV.offsetWidth; 
+        viewV.classList.add('animate-fade-in-scale');
+    }
+    
+    const aNav = document.getElementById(`nav-${v}`); 
+    if(aNav) aNav.className = "block px-4 py-3 bg-green-900/40 text-green-400 font-medium rounded-lg border border-green-900/50";
+    
+    const aMob = document.getElementById(`nav-${v}-mob`); 
+    if(aMob) aMob.className = "flex flex-col items-center text-green-400 transition-colors";
+    
     if(v === 'club') renderClubDashboard();
     if(v === 'squad' && document.getElementById('squad-count')) document.getElementById('squad-count').textContent = globalPlayersList.length;
     if(v === 'league') renderLeagueView(); 
@@ -206,28 +226,46 @@ function switchView(v) {
     }
 }
 
+// 2. HÀM MỞ SUB-VIEW (Giao diện phụ như Chiến thuật, Cửa hàng)
 window.openSubView = function(subViewId) {
-    TABS.forEach(id => { const el = document.getElementById(`view-${id}`); if(el) el.classList.add('hidden'); });
-    const subEl = document.getElementById(`subview-${subViewId}`); if(subEl) subEl.classList.remove('hidden'); activeSubView = subViewId;
+    TABS.forEach(id => { 
+        const el = document.getElementById(`view-${id}`); 
+        if(el) el.classList.add('hidden'); 
+    });
+    
+    const subEl = document.getElementById(`subview-${subViewId}`); 
+    if(subEl) {
+        subEl.classList.remove('hidden', 'animate-fade-in-scale'); 
+        void subEl.offsetWidth; // Reflow
+        subEl.classList.add('animate-fade-in-scale'); // Thêm hiệu ứng
+    }
+    
+    activeSubView = subViewId;
+    
     if(subViewId === 'facilities') window.renderFacilities(); 
+    if(subViewId === 'stadium') window.renderStadium();
     if(subViewId === 'squad-list') renderSquadList(); 
     if(subViewId === 'tactics') renderPitch();
     if(subViewId === 'market') {
         const tabTransfer = document.getElementById('tab-transfer-market');
         if(tabTransfer) tabTransfer.click(); 
-        renderTransferMarket(); // Nạp dữ liệu chợ ngay khi mở Sub-view
+        renderTransferMarket(); 
     }
-    if(subViewId === 'stadium') window.renderStadium();
 };
 
+// 3. HÀM ĐÓNG SUB-VIEW
 window.closeSubView = function(returnToParent = true) {
     if(!activeSubView) return;
-    const subEl = document.getElementById(`subview-${activeSubView}`); if(subEl) subEl.classList.add('hidden');
+    const subEl = document.getElementById(`subview-${activeSubView}`); 
+    if(subEl) subEl.classList.add('hidden');
+    
+    activeSubView = null;
+    
     if(returnToParent) {
+        // Việc gọi switchView sẽ tự động xử lý hiệu ứng cho view cha
         if(['facilities', 'stadium', 'trophy'].includes(activeSubView)) switchView('club');
         else if(['squad-list', 'tactics', 'market'].includes(activeSubView)) switchView('squad');
     }
-    activeSubView = null;
 };
 
 TABS.forEach(v => { 
