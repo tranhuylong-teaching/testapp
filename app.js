@@ -28,6 +28,29 @@ const STORE_ITEMS = [
     { id: 'item_gacha', name: 'Lò Đào Tạo', icon: '⭐', desc: 'Tuyển 1 tài năng', price: 1000000, type: 'gacha' }
 ];
 
+// ================= HỆ THỐNG KỸ NĂNG (TRAITS) =================
+const PLAYER_TRAITS = [
+    { id: 'speedster', name: 'Máy Chạy', icon: '⚡', desc: 'Bứt tốc kinh hoàng, dễ tạo đột biến', pos: ['FWD', 'MID', 'DEF'] },
+    { id: 'sniper', name: 'Đại Bác', icon: '🚀', desc: 'Sút xa sấm sét từ ngoài vòng cấm', pos: ['FWD', 'MID'] },
+    { id: 'playmaker', name: 'Nhạc Trưởng', icon: '🎩', desc: 'Kiến tạo chọc khe ảo diệu', pos: ['MID'] },
+    { id: 'wall', name: 'Hòn Đá Tảng', icon: '🧱', desc: 'Phòng ngự thép, đánh chặn xuất sắc', pos: ['DEF', 'MID'] },
+    { id: 'spider', name: 'Người Nhện', icon: '🕸️', desc: 'Phản xạ cứu thua xuất thần', pos: ['GK'] },
+    { id: 'fox', name: 'Cáo Vòng Cấm', icon: '🦊', desc: 'Đánh hơi bàn thắng, chớp thời cơ nhạy bén', pos: ['FWD'] }
+];
+
+// Hàm random kỹ năng cho cầu thủ mới
+function assignRandomTrait(pos, ovr) {
+    // Chỉ cầu thủ OVR >= 70 mới có cơ hội sở hữu Kỹ năng đặc biệt (tỷ lệ 30%, OVR > 85 thì 80%)
+    const chance = ovr >= 85 ? 0.8 : (ovr >= 70 ? 0.3 : 0);
+    if (Math.random() > chance) return null;
+    
+    // Lọc kỹ năng phù hợp với vị trí
+    const validTraits = PLAYER_TRAITS.filter(t => t.pos.includes(pos));
+    if (validTraits.length === 0) return null;
+    
+    return validTraits[Math.random() * validTraits.length | 0]; // Chọn random 1 kỹ năng
+}
+
 function toggleNavLock(isLocked) { document.querySelectorAll('aside nav, nav.fixed').forEach(n => isLocked ? n.classList.add('pointer-events-none', 'opacity-50') : n.classList.remove('pointer-events-none', 'opacity-50')); }
 function getRarityClass(ovr) {
     if (ovr >= 90) return { 
@@ -460,6 +483,17 @@ window.openPlayerDetail = function(playerId) {
     document.getElementById('detail-items-used').textContent = p.itemsUsed || 0;
     document.getElementById('detail-value').textContent = `€${(p.value || p.ovr*100000).toLocaleString()}`;
 
+    // Hiển thị Kỹ năng ẩn (Trait)
+    const traitBadge = document.getElementById('detail-trait-badge');
+    if (p.trait) {
+        traitBadge.innerHTML = p.trait.icon;
+        traitBadge.classList.remove('hidden');
+        // Thêm tooltip hiện tên kỹ năng
+        traitBadge.setAttribute('title', `${p.trait.name}: ${p.trait.desc}`);
+    } else {
+        traitBadge.classList.add('hidden');
+    }
+
     // 4. Vẽ Radar Chart (Biểu đồ lục giác)
     const ctx = document.getElementById('playerRadarChart');
     if(playerChartInstance) playerChartInstance.destroy();
@@ -831,7 +865,12 @@ function generateMarketPlayers() {
     currentMarketList = []; for(let i=0; i<8; i++) { 
         const isStar = Math.random() > 0.8; const pos = POSITIONS[Math.floor(Math.random()*POSITIONS.length)]; 
         const ovr = isStar ? Math.floor(Math.random()*15)+80 : Math.floor(Math.random()*20)+50; const val = ovr * (isStar ? 150000 : 80000); let stats = { PAC: ovr, SHO: ovr, PAS: ovr, DRI: ovr, DEF: ovr, PHY: ovr };
-        currentMarketList.push({ id: 'market_' + Date.now() + i, name: generatePlayerName(isStar), pos: pos, ovr: ovr, value: val, stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, stamina: 100, injury: 0, isListed: false, itemsUsed: 0 });
+        currentMarketList.push({ id: 'market_' + Date.now() + i, 
+                                name: generatePlayerName(isStar), 
+                                pos: pos, ovr: ovr, value: val, stats: stats, 
+                                bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 },
+                                trait: assignRandomTrait(randomPos, Math.floor(Math.random() * 16) + 60),
+                                stamina: 100, injury: 0, isListed: false, itemsUsed: 0 });
     }
     currentMarketList.sort((a, b) => POS_ORDER[a.pos] - POS_ORDER[b.pos] || b.ovr - a.ovr);
 }
@@ -933,7 +972,8 @@ window.buyItem = async function(itemId) {
                     pos: randomPos, 
                     ovr: recalculateOVR(randomPos, stats), // Đã tính đúng theo vị trí bốc được
                     stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, 
-                    stamina: 100, injury: 0, value: ovr * 70000, isListed: false, itemsUsed: 0 
+                    stamina: 100, injury: 0, value: ovr * 70000, isListed: false, itemsUsed: 0 ,
+                    trait: assignRandomTrait(randomPos, Math.floor(Math.random() * 16) + 60)
                 };
                 
                 const modal = document.getElementById('gacha-modal');
@@ -1335,18 +1375,42 @@ function startMatchEngine(opponent, isFriendly) {
         document.getElementById('match-minute').textContent = minute;
         
         const rng = Math.random() * 100; 
-        const homeGoalChance = (homeOVR / (homeOVR + awayOVR)) * 14; 
+        let homeGoalChance = (homeOVR / (homeOVR + awayOVR)) * 14; 
         const awayGoalChance = (awayOVR / (awayOVR + homeOVR)) * 14;
         
-        if (rng < homeGoalChance) { 
+        // KIỂM TRA KÍCH HOẠT KỸ NĂNG ĐẶC BIỆT CỦA USER
+        let triggeredTrait = null;
+        if (myActiveTraits.length > 0 && Math.random() < 0.15) { // 15% cơ hội kích hoạt trait trong mỗi pha bóng
+            triggeredTrait = myActiveTraits[Math.floor(Math.random() * myActiveTraits.length)];
+        }
+
+        if (rng < homeGoalChance || (triggeredTrait && ['speedster', 'sniper', 'playmaker', 'fox'].includes(triggeredTrait.trait.id))) { 
+            // Nếu có trait tấn công kích hoạt -> Ghi bàn luôn!
             homeScore++; scoreHomeEl.textContent = homeScore; 
             triggerGoalEffect(true);
-            addLog(`<div class="text-green-300 font-bold bg-gradient-to-r from-green-900/60 to-transparent p-3 rounded-lg border-l-4 border-green-500 shadow-md animate-fade-in-up">⚽ Phút ${minute}': VÀO!!! Bàn thắng tuyệt đẹp cho ${myClubName.toUpperCase()}!</div>`); 
+            
+            if (triggeredTrait) {
+                addLog(`<div class="text-fuchsia-300 font-bold bg-gradient-to-r from-fuchsia-900/60 to-transparent p-3 rounded-lg border-l-4 border-fuchsia-500 shadow-[0_0_15px_rgba(217,70,239,0.3)] animate-fade-in-up">
+                    ${triggeredTrait.trait.icon} KỸ NĂNG KÍCH HOẠT: ${triggeredTrait.trait.name.toUpperCase()}!<br>
+                    <span class="text-white text-xs">${triggeredTrait.name} ${triggeredTrait.trait.desc} và ghi bàn ngoạn mục cho ${myClubName}!</span>
+                </div>`);
+                if(typeof window.playHaptic === 'function') window.playHaptic('heavy');
+            } else {
+                addLog(`<div class="text-green-300 font-bold bg-gradient-to-r from-green-900/60 to-transparent p-3 rounded-lg border-l-4 border-green-500 shadow-md animate-fade-in-up">⚽ Phút ${minute}': VÀO!!! Bàn thắng tuyệt đẹp cho ${myClubName.toUpperCase()}!</div>`); 
+            }
         } 
         else if (rng > 100 - awayGoalChance) { 
-            awayScore++; scoreAwayEl.textContent = awayScore; 
-            triggerGoalEffect(false);
-            addLog(`<div class="text-red-300 font-bold bg-gradient-to-r from-red-900/60 to-transparent p-3 rounded-lg border-l-4 border-red-500 shadow-md animate-fade-in-up">⚽ Phút ${minute}': VÀO! ${opponent.name.toUpperCase()} ghi bàn!</div>`); 
+            // Đối phương định ghi bàn, check xem mình có Thủ môn/Hậu vệ kích hoạt Trait phòng ngự không
+            if (triggeredTrait && ['wall', 'spider'].includes(triggeredTrait.trait.id)) {
+                addLog(`<div class="text-cyan-300 font-bold bg-gradient-to-r from-cyan-900/60 to-transparent p-3 rounded-lg border-l-4 border-cyan-500 shadow-md animate-fade-in-up">
+                    ${triggeredTrait.trait.icon} KỸ NĂNG PHÒNG NGỰ: ${triggeredTrait.trait.name.toUpperCase()}!<br>
+                    <span class="text-white text-xs">${triggeredTrait.name} đã cứu thua xuất thần cho ${myClubName}! Nguy hiểm trôi qua.</span>
+                </div>`);
+            } else {
+                awayScore++; scoreAwayEl.textContent = awayScore; 
+                triggerGoalEffect(false);
+                addLog(`<div class="text-red-300 font-bold bg-gradient-to-r from-red-900/60 to-transparent p-3 rounded-lg border-l-4 border-red-500 shadow-md animate-fade-in-up">⚽ Phút ${minute}': VÀO! ${opponent.name.toUpperCase()} ghi bàn!</div>`); 
+            }
         } 
         else if (rng > 40 && rng < 48) { 
             addLog(`<div class="text-slate-400 italic px-2 animate-fade-in-up">⏱ Phút ${minute}': Thế trận giằng co ở khu vực giữa sân...</div>`); 
