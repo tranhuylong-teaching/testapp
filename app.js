@@ -1329,7 +1329,6 @@ function startMatchEngine(opponent, isFriendly) {
     document.getElementById('season-end-panel').classList.add('hidden'); 
     document.getElementById('league-table-container').classList.add('hidden'); 
     
-    // Xóa class shake cũ nếu có
     const liveMatchContainer = document.getElementById('match-live');
     liveMatchContainer.classList.remove('hidden', 'animate-shake'); 
     document.getElementById('finish-match-btn').classList.add('hidden');
@@ -1337,7 +1336,6 @@ function startMatchEngine(opponent, isFriendly) {
     let minute = 0; let homeScore = 0; let awayScore = 0;
     const logContainer = document.getElementById('match-logs-container'); 
     
-    // Ghi đè innerHTML lần đầu tiên để reset
     logContainer.innerHTML = `<div class="text-slate-400 text-center text-xs md:text-sm py-2 animate-fade-in-up">Trọng tài thổi còi bắt đầu trận đấu ${isFriendly ? "Giao Hữu" : ""}!</div>`;
     
     document.getElementById('live-home-name').textContent = myClubName; 
@@ -1350,17 +1348,15 @@ function startMatchEngine(opponent, isFriendly) {
     
     const homeOVR = teamPower.OVR; const awayOVR = opponent.ovr;
 
-    // Hàm chèn log xịn sò không làm mất DOM cũ
     function addLog(htmlString) {
         logContainer.insertAdjacentHTML('beforeend', htmlString);
         logContainer.scrollTop = logContainer.scrollHeight;
     }
 
-    // Hàm kích hoạt hiệu ứng Bàn thắng
     function triggerGoalEffect(isHome) {
         const el = isHome ? scoreHomeEl : scoreAwayEl;
         el.classList.remove('animate-pop');
-        void el.offsetWidth; // Bắt trình duyệt vẽ lại (Reflow) để reset CSS
+        void el.offsetWidth; 
         el.classList.add('animate-pop');
         
         liveMatchContainer.classList.remove('animate-shake');
@@ -1368,24 +1364,30 @@ function startMatchEngine(opponent, isFriendly) {
         liveMatchContainer.classList.add('animate-shake');
     }
 
-    // Tăng tốc độ mô phỏng lên một chút (400ms -> delay nhịp nhàng để đọc)
+    // --- KHỞI TẠO DANH SÁCH KỸ NĂNG TRƯỚC KHI ĐÁ ---
+    let myActiveTraits = [];
+    startingXI.forEach(id => {
+        if(id && globalPlayersMap[id] && globalPlayersMap[id].trait) {
+            myActiveTraits.push({ name: globalPlayersMap[id].name, trait: globalPlayersMap[id].trait });
+        }
+    });
+
     const matchTimer = setInterval(function() {
         minute += Math.floor(Math.random() * 4) + 2; 
         if(minute >= 90) minute = 90; 
         document.getElementById('match-minute').textContent = minute;
         
         const rng = Math.random() * 100; 
-        let homeGoalChance = (homeOVR / (homeOVR + awayOVR)) * 14; 
+        const homeGoalChance = (homeOVR / (homeOVR + awayOVR)) * 14; 
         const awayGoalChance = (awayOVR / (awayOVR + homeOVR)) * 14;
         
-        // KIỂM TRA KÍCH HOẠT KỸ NĂNG ĐẶC BIỆT CỦA USER
+        // KIỂM TRA KÍCH HOẠT KỸ NĂNG ĐẶC BIỆT
         let triggeredTrait = null;
-        if (myActiveTraits.length > 0 && Math.random() < 0.15) { // 15% cơ hội kích hoạt trait trong mỗi pha bóng
+        if (myActiveTraits.length > 0 && Math.random() < 0.15) { 
             triggeredTrait = myActiveTraits[Math.floor(Math.random() * myActiveTraits.length)];
         }
 
         if (rng < homeGoalChance || (triggeredTrait && ['speedster', 'sniper', 'playmaker', 'fox'].includes(triggeredTrait.trait.id))) { 
-            // Nếu có trait tấn công kích hoạt -> Ghi bàn luôn!
             homeScore++; scoreHomeEl.textContent = homeScore; 
             triggerGoalEffect(true);
             
@@ -1400,7 +1402,6 @@ function startMatchEngine(opponent, isFriendly) {
             }
         } 
         else if (rng > 100 - awayGoalChance) { 
-            // Đối phương định ghi bàn, check xem mình có Thủ môn/Hậu vệ kích hoạt Trait phòng ngự không
             if (triggeredTrait && ['wall', 'spider'].includes(triggeredTrait.trait.id)) {
                 addLog(`<div class="text-cyan-300 font-bold bg-gradient-to-r from-cyan-900/60 to-transparent p-3 rounded-lg border-l-4 border-cyan-500 shadow-md animate-fade-in-up">
                     ${triggeredTrait.trait.icon} KỸ NĂNG PHÒNG NGỰ: ${triggeredTrait.trait.name.toUpperCase()}!<br>
@@ -1432,7 +1433,6 @@ function startMatchEngine(opponent, isFriendly) {
             let bigWin = (homeScore - awayScore >= 3) ? (isFriendly ? 20000 : 200000) : 0; 
             let sponsorMoney = isFriendly ? 100000 : 0; 
             
-            // Logic vé Sân Vận Động
             if(!myFacilities.stadium) myFacilities.stadium = 1;
             let currentStadium = STADIUM_STATS[myFacilities.stadium - 1];
             let ticketRevenue = currentStadium.capacity * currentStadium.ticketPrice;
@@ -1442,7 +1442,6 @@ function startMatchEngine(opponent, isFriendly) {
             let financeBonus = Math.floor(income * (myFacilities.finance * 0.05));
             let totalEarnings = matchFee + income + financeBonus;
             
-            // Báo cáo tài chính cũng được AddLog trượt lên
             addLog(`<div class="mt-3 mb-2 bg-slate-800 border border-yellow-500/50 p-4 rounded-xl text-xs sm:text-sm shadow-xl animate-fade-in-up">
                 <div class="font-bold text-yellow-400 mb-3 border-b border-slate-700 pb-2 text-center tracking-widest uppercase">📊 Báo cáo Tài chính</div>
                 <div class="space-y-1.5">
