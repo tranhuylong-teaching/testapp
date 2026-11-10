@@ -568,16 +568,70 @@ function calcTeamPower() {
 }
 
 function renderPitch() {
-    const container = document.getElementById('pitch-container'); if(!container) return; container.innerHTML = ''; const layout = currentFormation.split('-').map(Number); layout.reverse(); layout.push(1); let slotIndex = 0;
+    const container = document.getElementById('pitch-container'); 
+    if(!container) return; 
+    container.innerHTML = ''; 
+    
+    const layout = currentFormation.split('-').map(Number); 
+    layout.reverse(); layout.push(1); 
+    let slotIndex = 0;
+    
     layout.forEach((rowCount, rowIndex) => {
-        const expectedPos = ['FWD', 'MID', 'DEF', 'GK'][rowIndex]; const rowDiv = document.createElement('div'); rowDiv.className = "flex justify-center items-center w-full gap-1 sm:gap-6";
+        const expectedPos = ['FWD', 'MID', 'DEF', 'GK'][rowIndex]; 
+        const rowDiv = document.createElement('div'); 
+        rowDiv.className = "flex justify-center items-center w-full gap-2 sm:gap-6";
+        
         for(let i=0; i<rowCount; i++) {
-            const p = startingXI[slotIndex] ? globalPlayersMap[startingXI[slotIndex]] : null; const cIndex = slotIndex; let pHtml = "";
+            const p = startingXI[slotIndex] ? globalPlayersMap[startingXI[slotIndex]] : null; 
+            const cIndex = slotIndex; 
+            let pHtml = "";
+            
             if (p) {
-                const penalty = p.stamina < 60 ? Math.floor((60 - p.stamina) / 2) : 0; let effOvr = Math.max(1, p.ovr - penalty); if(p.injury > 0) effOvr = '🚑'; const rarity = getRarityClass(effOvr);
-                pHtml = `<div class="w-8 h-8 sm:w-10 sm:h-10 border-2 ${(p.pos !== expectedPos) ? 'border-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)]' : rarity.border} ${rarity.bg} rounded-full flex items-center justify-center font-bold text-xs sm:text-sm z-10 relative overflow-hidden">${effOvr}${penalty > 0 && p.injury == 0 ? `<div class="absolute -top-1.5 -right-1.5 sm:-top-2 sm:-right-2 bg-red-600 text-white text-[8px] sm:text-[9px] font-bold px-1 rounded-full shadow z-20">-${penalty}</div>` : ''}</div><div class="mt-1 w-12 sm:w-16 flex flex-col items-center"><div class="bg-black/80 px-1 py-0.5 rounded text-[8px] sm:text-[10px] text-white truncate max-w-full z-10">${p.name}</div>${p.injury > 0 ? '' : `<div class="w-full bg-slate-800 h-1 sm:h-1.5 mt-0.5 rounded border border-slate-700 overflow-hidden z-10"><div class="${p.stamina >= 80 ? 'bg-green-400' : (p.stamina >= 50 ? 'bg-yellow-400' : 'bg-red-500')} h-full" style="width: ${p.stamina}%"></div></div>`}</div>`;
-            } else { pHtml = `<div class="w-8 h-8 sm:w-10 sm:h-10 bg-white/10 hover:bg-white/20 border-2 border-dashed border-white/40 rounded-full flex items-center justify-center text-white/50 text-[10px] sm:text-xs font-bold z-10 transition">${expectedPos}</div>`; }
-            rowDiv.innerHTML += `<div class="relative flex flex-col items-center w-14 sm:w-16 cursor-pointer hover:scale-110 transition-transform" onclick="window.openBenchSelect(${cIndex}, '${expectedPos}')">${pHtml}</div>`; slotIndex++;
+                const penalty = p.stamina < 60 ? Math.floor((60 - p.stamina) / 2) : 0; 
+                let effOvr = Math.max(1, p.ovr - penalty); 
+                const isInjured = p.injury > 0;
+                
+                if(isInjured) effOvr = '🚑'; 
+                const rarity = getRarityClass(effOvr === '🚑' ? p.ovr : effOvr);
+                
+                // Vẽ Vòng tròn năng lượng (Thể lực) bao quanh thẻ
+                const staminaColor = p.stamina >= 80 ? '#22c55e' : (p.stamina >= 50 ? '#eab308' : '#ef4444');
+                const ringStyle = isInjured 
+                    ? `background: #ef4444; box-shadow: 0 0 10px #ef4444;` 
+                    : `background: conic-gradient(${staminaColor} ${p.stamina}%, rgba(0,0,0,0.5) 0);`;
+                
+                // Cảnh báo nếu xếp sai vị trí sở trường
+                const wrongPosAlert = (p.pos !== expectedPos) 
+                    ? '<div class="absolute -top-1.5 -right-1.5 bg-red-600 text-white rounded-full w-4 h-4 flex items-center justify-center text-[10px] animate-bounce shadow-lg border border-white">⚠️</div>' 
+                    : '';
+                
+                pHtml = `
+                    <div class="relative w-10 h-10 sm:w-12 sm:h-12 rounded-full p-[2.5px] shadow-lg transition-transform z-10" style="${ringStyle}">
+                        <div class="w-full h-full bg-slate-900 rounded-full flex items-center justify-center border-2 ${(p.pos !== expectedPos) ? 'border-red-500' : rarity.border} ${rarity.bg} overflow-hidden relative">
+                            <span class="font-black text-xs sm:text-sm ${rarity.text} drop-shadow-md z-10">${effOvr}</span>
+                            ${penalty > 0 && !isInjured ? `<div class="absolute bottom-0 w-full bg-red-600/90 text-white text-[7px] font-bold text-center pt-0.5 pb-0.5 leading-none z-0">-${penalty}</div>` : ''}
+                        </div>
+                        ${wrongPosAlert}
+                    </div>
+                    <div class="mt-1.5 w-16 sm:w-20 flex flex-col items-center z-10">
+                        <div class="bg-black/80 backdrop-blur-sm border border-white/20 px-1.5 py-0.5 rounded shadow text-[9px] sm:text-[10px] text-white font-bold truncate max-w-full text-center">
+                            ${p.name}
+                        </div>
+                    </div>
+                `;
+            } else { 
+                pHtml = `
+                    <div class="w-10 h-10 sm:w-12 sm:h-12 bg-black/40 hover:bg-black/60 border-2 border-dashed border-white/30 rounded-full flex items-center justify-center text-white/40 text-[10px] sm:text-xs font-bold transition shadow-inner z-10">
+                        ${expectedPos}
+                    </div>
+                    <div class="mt-1.5 w-16 sm:w-20 flex justify-center z-10">
+                        <div class="bg-black/30 border border-dashed border-white/20 px-1.5 py-0.5 rounded text-[8px] sm:text-[10px] text-white/40 font-medium text-center">Trống</div>
+                    </div>
+                `; 
+            }
+            
+            rowDiv.innerHTML += `<div class="relative flex flex-col items-center w-16 sm:w-20 cursor-pointer hover:scale-110 transition-transform group" onclick="window.openBenchSelect(${cIndex}, '${expectedPos}')">${pHtml}</div>`; 
+            slotIndex++;
         }
         container.appendChild(rowDiv);
     });
