@@ -66,6 +66,12 @@
             border: 2px solid rgba(255, 255, 255, 0.3); border-radius: 50%; 
             transform: translate(-50%, -50%); box-shadow: 0 0 10px rgba(255,255,255,0.3) inset;
         }
+
+        /* TRONG THẺ <style> của index.html */
+        .perspective-1000 { perspective: 1000px; }
+        .transform-style-3d { transform-style: preserve-3d; }
+        .backface-hidden { backface-visibility: hidden; }
+        .rotate-y-180 { transform: rotateY(180deg); }
     </style>
 </head>
 <body class="text-white min-h-screen font-sans antialiased relative selection:bg-green-500/30">
@@ -422,6 +428,30 @@
                 </div>
             </div>
         </div>
+    </div>
+
+    <!-- MODAL LẬT THẺ GACHA -->
+    <div id="gacha-modal" class="hidden fixed inset-0 bg-black/95 backdrop-blur-md z-[9999] flex flex-col items-center justify-center p-4 transition-opacity duration-500 opacity-0">
+        <h2 id="gacha-title" class="text-yellow-400 font-bold text-xl md:text-2xl tracking-widest uppercase mb-10 animate-pulse drop-shadow-[0_0_10px_rgba(250,204,21,0.8)]">Phát hiện Tài năng trẻ</h2>
+        
+        <div class="relative w-64 h-96 perspective-1000 cursor-pointer group" id="gacha-card-wrapper" onclick="window.flipGachaCard()">
+            <div id="gacha-card-inner" class="w-full h-full transition-transform duration-700 transform-style-3d relative shadow-[0_0_50px_rgba(250,204,21,0.4)] rounded-2xl group-hover:scale-105">
+                
+                <!-- Mặt trước thẻ (Bìa) -->
+                <div class="absolute inset-0 backface-hidden bg-gradient-to-br from-yellow-500 via-amber-700 to-yellow-900 rounded-2xl border-4 border-yellow-300 flex flex-col items-center justify-center pattern-dots">
+                    <div class="text-7xl drop-shadow-lg mb-4">✨</div>
+                    <div class="text-yellow-100 font-black tracking-widest text-2xl uppercase drop-shadow-md">TOP SECRET</div>
+                    <div class="text-xs text-yellow-200 mt-4 italic bg-black/30 px-3 py-1 rounded-full">Bấm để lật thẻ!</div>
+                </div>
+                
+                <!-- Mặt sau thẻ (Kết quả Cầu thủ) -->
+                <div class="absolute inset-0 backface-hidden rotate-y-180 rounded-2xl border-4 flex flex-col items-center justify-center overflow-hidden" id="gacha-result-face">
+                    <!-- Nội dung sẽ được JS chèn vào -->
+                </div>
+            </div>
+        </div>
+        
+        <button id="close-gacha-btn" onclick="window.closeGachaModal()" class="hidden absolute bottom-12 px-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full font-bold backdrop-blur-md transition border border-white/30 animate-fade-in-up">Đưa vào Đội hình</button>
     </div>
     
     <div id="select-player-modal" class="hidden fixed inset-0 bg-slate-900/90 z-[100] flex flex-col items-center justify-center p-4"><div class="bg-slate-800 border border-slate-600 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"><div class="p-4 border-b border-slate-700 flex justify-between items-center"><h3 class="font-bold text-white text-sm md:text-base">Chọn cầu thủ vào sân</h3><button onclick="window.closeBenchSelect()" class="text-slate-400 hover:text-white font-bold text-xl">✕</button></div><div class="overflow-y-auto p-2 text-sm" id="bench-list-container"></div><div class="p-3 md:p-4 border-t border-slate-700"><button onclick="window.removePlayerFromSlot()" class="w-full py-2 md:py-3 bg-red-900/30 hover:bg-red-800/60 border border-red-900/50 text-red-300 rounded-lg font-bold transition text-sm md:text-base">Bỏ trống vị trí này</button></div></div></div>
