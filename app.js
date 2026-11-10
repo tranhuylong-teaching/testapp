@@ -11,6 +11,9 @@ let teamPower = { OVR: 0, ATT: 0, MID: 0, DEF: 0 };
 let leagueState = { currentRound: 1, standings: [], schedule: [], friendlyMatchesPlayed: 0, promotedBots: [], pendingBuys: [], pendingSells: [], rankHistory: [] };
 let newsInbox = []; let hasUnreadNews = false; let currentMarketList = []; let currentlyViewingPlayerId = null; let currentSlotToFill = null; let currentItemToApply = null;
 let activeSubView = null; let activeOpponent = null;
+let myClubLogo = "🛡️"; 
+let myStadiumName = "Sân Nhà"; 
+let myQuest = null;
 
 const TABS = ['club', 'squad', 'league', 'news', 'settings'];
 const POS_COLORS = { 'GK': 'bg-yellow-600', 'DEF': 'bg-blue-600', 'MID': 'bg-green-600', 'FWD': 'bg-red-600' };
@@ -37,6 +40,13 @@ function updateHeaderDisplay() {
     if(document.getElementById('budget-display')) document.getElementById('budget-display').textContent = `€${(myBudget/1000000).toFixed(2)}M`;
     if(document.getElementById('fame-display')) document.getElementById('fame-display').textContent = `🌟 ${myFame}`;
     if(document.getElementById('header-club-name')) document.getElementById('header-club-name').textContent = myClubName;
+    
+    // Hiển thị dạng hình ảnh nếu là URL, hiển thị Text nếu là Emoji
+    const logoEl = document.getElementById('header-club-logo');
+    if(logoEl) {
+        if(myClubLogo.startsWith('http')) logoEl.innerHTML = `<img src="${myClubLogo}" class="w-6 h-6 object-contain rounded-full bg-white/10" />`;
+        else logoEl.textContent = myClubLogo;
+    }
 }
 
 // Khai báo biến toàn cục để lưu instance của biểu đồ
@@ -56,17 +66,36 @@ function renderClubDashboard() {
     const sponsorContainer = document.getElementById('sponsor-events-list');
     if(sponsorContainer) {
         // Lọc các tin có chứa từ khoá tài chính hoặc tài trợ
-        let sponsorNews = newsInbox.filter(n => n.title.toLowerCase().includes('tài trợ') || n.title.toLowerCase().includes('tài chính') || n.title.toLowerCase().includes('phạt') || (n.isGood && n.title.includes('Bán')));
+        const sponsorContainer = document.getElementById('sponsor-events-list');
+        if(sponsorContainer) {
+            let questHtml = '';
+            if(myQuest) {
+                let percent = Math.min(100, (myQuest.progress / myQuest.target) * 100);
+                questHtml = `
+                <div class="bg-indigo-900/40 border border-indigo-500/50 p-3 rounded-lg mb-3 shadow-lg">
+                    <div class="flex justify-between items-center mb-1">
+                        <span class="text-indigo-300 font-bold text-[10px] md:text-xs uppercase">🎯 Hợp đồng ngắn hạn</span>
+                        <span class="text-yellow-400 font-bold text-xs">Thưởng: €${myQuest.reward.toLocaleString()}</span>
+                    </div>
+                    <div class="text-white text-sm mb-2">${myQuest.desc} (<span class="text-green-400 font-bold">${myQuest.progress}/${myQuest.target}</span>)</div>
+                    <div class="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-slate-700">
+                        <div class="bg-gradient-to-r from-indigo-600 to-purple-500 h-full transition-all duration-500" style="width: ${percent}%"></div>
+                    </div>
+                </div>`;
+            }
         
-        if(sponsorNews.length === 0) {
-            sponsorContainer.innerHTML = '<div class="text-center text-slate-500 italic mt-6 text-sm">Chưa có hoạt động dòng tiền nổi bật.</div>';
-        } else {
-            sponsorContainer.innerHTML = sponsorNews.slice(0, 5).map(n => `
-                <div class="bg-slate-900/50 p-3 rounded-lg border-l-4 ${n.isGood ? 'border-green-500' : 'border-red-500'}">
-                    <div class="font-bold ${n.isGood ? 'text-green-400' : 'text-red-400'} text-xs md:text-sm mb-1">${n.title}</div>
-                    <div class="text-[10px] md:text-xs text-slate-300 leading-relaxed">${n.message}</div>
-                </div>
-            `).join('');
+            let sponsorNews = newsInbox.filter(n => n.title.toLowerCase().includes('tài trợ') || n.title.toLowerCase().includes('tài chính') || n.title.toLowerCase().includes('phạt') || (n.isGood && n.title.includes('Bán')));
+            
+            let newsHtml = sponsorNews.length === 0 
+                ? '<div class="text-center text-slate-500 italic mt-4 text-sm">Chưa có hoạt động dòng tiền nổi bật.</div>' 
+                : sponsorNews.slice(0, 4).map(n => `
+                    <div class="bg-slate-900/50 p-2.5 md:p-3 rounded-lg border-l-4 ${n.isGood ? 'border-green-500' : 'border-red-500'} mb-2">
+                        <div class="font-bold ${n.isGood ? 'text-green-400' : 'text-red-400'} text-xs md:text-sm mb-0.5">${n.title}</div>
+                        <div class="text-[10px] md:text-xs text-slate-300 leading-relaxed line-clamp-2">${n.message}</div>
+                    </div>
+                `).join('');
+        
+            sponsorContainer.innerHTML = questHtml + newsHtml;
         }
     }
 
@@ -150,7 +179,11 @@ function switchView(v) {
     if(v === 'squad' && document.getElementById('squad-count')) document.getElementById('squad-count').textContent = globalPlayersList.length;
     if(v === 'league') renderLeagueView(); 
     if(v === 'news') { renderNewsView(); hasUnreadNews = false; checkUnreadNews(); }
-    if(v === 'settings' && document.getElementById('setting-club-name')) document.getElementById('setting-club-name').value = myClubName;
+    if(v === 'settings' && document.getElementById('setting-club-name')) {
+        document.getElementById('setting-club-name').value = myClubName;
+        document.getElementById('setting-club-logo').value = myClubLogo;
+        document.getElementById('setting-stadium-name').value = myStadiumName;
+    }
 }
 
 window.openSubView = function(subViewId) {
@@ -183,12 +216,30 @@ TABS.forEach(v => {
 });
 
 window.saveSettings = async function() {
-    const newName = document.getElementById('setting-club-name').value.trim(); if(!newName) { showToast("Tên không được bỏ trống!", "error"); return; }
+    const newName = document.getElementById('setting-club-name').value.trim(); 
+    const newLogo = document.getElementById('setting-club-logo').value.trim() || "🛡️";
+    const newStadium = document.getElementById('setting-stadium-name').value.trim() || "Sân Nhà";
+    
+    if(!newName) { showToast("Tên không được bỏ trống!", "error"); return; }
+    
     showLoading("ĐANG LƯU...");
     try {
-        myClubName = newName; await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { clubName: newName }, { merge: true });
-        let userTeam = leagueState.standings.find(t => t.isUser); if(userTeam) { userTeam.name = newName; await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState); }
-        updateHeaderDisplay(); showToast("Đổi tên CLB thành công!", "success");
+        myClubName = newName; myClubLogo = newLogo; myStadiumName = newStadium;
+        await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { 
+            clubName: newName, 
+            logo: newLogo,
+            stadiumName: newStadium 
+        }, { merge: true });
+        
+        let userTeam = leagueState.standings.find(t => t.isUser); 
+        if(userTeam) { 
+            userTeam.name = newName; 
+            await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState); 
+        }
+        
+        updateHeaderDisplay(); 
+        if(activeSubView === 'stadium') window.renderStadium(); // Render lại tên SVĐ
+        showToast("Cập nhật thông tin thành công!", "success");
     } catch(e) { showToast("Lỗi lưu cài đặt!"); } finally { hideLoading(); }
 };
 
@@ -239,9 +290,15 @@ async function loadGameData(uid) {
         if (profileSnap.exists()) {
             const profileData = profileSnap.data(); 
             if(!profileData.clubName) { document.getElementById('init-club-modal').classList.remove('hidden'); hideLoading(); return; }
-            myClubName = profileData.clubName; myBudget = profileData.budget || 10000000; myFame = profileData.fame || 30;
+            myClubName = profileData.clubName; 
+            myClubLogo = profileData.logo || "🛡️";
+            myStadiumName = profileData.stadiumName || "Sân Nhà";
+            myQuest = profileData.quest || null;
+            myBudget = profileData.budget || 10000000; 
+            myFame = profileData.fame || 30;
             myFacilities = profileData.facilities || { medical: 1, scouting: 1, training: 1, finance: 1, scoutingCooldown: 5, scoutedPlayer: null, medicalSlots: [], trainingSlots: [], pendingUpgrade: null };
             if(!myFacilities.medicalSlots) myFacilities.medicalSlots = []; if(!myFacilities.trainingSlots) myFacilities.trainingSlots = [];
+            if(!myQuest) window.generateNewQuest();
             newsInbox = profileData.news || []; updateHeaderDisplay();
             
             const pSnap = await getDocs(collection(db, 'artifacts', appId, 'users', uid, 'players')); globalPlayersList = []; globalPlayersMap = {};
@@ -834,6 +891,22 @@ const finishLeagueRound = async (userScore, botScore, totalEarnings) => {
             myFame = Math.max(0, Math.min(100, myFame + fameDiff)); currentTotalEarnings += seasonPrize; endSeasonMessage = `MÙA GIẢI ĐÃ KẾT THÚC! Xếp thứ ${finalRank}, nhận €${seasonPrize.toLocaleString()}!`; leagueState.promotedBots = [];
         }
         myBudget += currentTotalEarnings; updateHeaderDisplay();
+
+        if(myQuest) {
+            if(myQuest.type === 'goals') myQuest.progress += userScore;
+            if(myQuest.type === 'cleansheet' && botScore === 0) myQuest.progress += 1;
+            if(myQuest.type === 'win' && userScore > botScore) myQuest.progress += 1;
+            if(myQuest.type === 'score_first' && userScore > 0) myQuest.progress += 1; // Tạm dùng logic ghi bàn là tính mở tỷ số cho đơn giản
+        
+            if(myQuest.progress >= myQuest.target) {
+                myBudget += myQuest.reward;
+                window.pushNews('Hoàn thành Hợp đồng Tài trợ', `Đội bóng đã hoàn thành mục tiêu: ${myQuest.desc}. Nhận khoản thưởng nóng €${myQuest.reward.toLocaleString()}!`, true);
+                window.generateNewQuest();
+            } else {
+                // Lưu tiến độ nếu chưa xong
+                setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { quest: myQuest }, { merge: true });
+            }
+        }
         
         if (Math.random() < 0.15) {
             if (Math.random() > 0.5) { myBudget += 200000; window.pushNews('Nhà tài trợ vui vẻ', 'Lối đá đẹp mắt, nhà tài trợ thưởng nóng €200,000!', true); } 
@@ -977,4 +1050,16 @@ window.renderStadium = function() {
             <div>${actionHtml}</div>
         </div>
     `;
+};
+
+window.generateNewQuest = function() {
+    const quests = [
+        { type: 'goals', target: 5, progress: 0, reward: 500000, desc: 'Ghi tổng cộng 5 bàn thắng' },
+        { type: 'cleansheet', target: 3, progress: 0, reward: 800000, desc: 'Giữ sạch lưới 3 trận' },
+        { type: 'win', target: 3, progress: 0, reward: 1000000, desc: 'Giành 3 chiến thắng' },
+        { type: 'score_first', target: 4, progress: 0, reward: 600000, desc: 'Ghi bàn mở tỷ số trong 4 trận' }
+    ];
+    myQuest = quests[Math.floor(Math.random() * quests.length)];
+    // Lưu vào Firebase
+    setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { quest: myQuest }, { merge: true });
 };
