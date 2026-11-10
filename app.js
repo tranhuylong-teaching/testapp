@@ -1286,13 +1286,79 @@ function sortStandings() { leagueState.standings.sort((a, b) => { if (b.points !
 
 function renderLeagueView() {
     sortStandings();
+    
     if (leagueState.currentRound > 31) {
-        document.getElementById('match-setup').classList.add('hidden'); document.getElementById('season-end-panel').classList.remove('hidden');
-        let userRank = leagueState.standings.findIndex(t => t.isUser) + 1; let prize = getPrizeMoney(userRank); document.getElementById('final-rank').textContent = userRank; document.getElementById('final-prize').textContent = `€${prize.toLocaleString()}`;
-        const summaryBoard = document.getElementById('season-summary-board'); let goldTeam = leagueState.standings[0]; let silverTeam = leagueState.standings[10]; let bronzeTeam = leagueState.standings[20];
-        let goldBoard = `<div class="flex-1"><h4 class="font-bold text-yellow-400 mb-2 border-b border-slate-700 pb-1">🏆 Các Nhà Vô Địch</h4><div class="text-yellow-400">🥇 Cúp Vàng: <span class="font-bold">${goldTeam?.name || 'N/A'}</span></div><div class="text-slate-300">🥈 Đĩa Bạc: <span class="font-bold">${silverTeam?.name || 'N/A'}</span></div><div class="text-orange-400">🥉 Khiên Đồng: <span class="font-bold">${bronzeTeam?.name || 'N/A'}</span></div></div>`;
+        document.getElementById('match-setup').classList.add('hidden'); 
+        const panel = document.getElementById('season-end-panel');
+        panel.classList.remove('hidden');
         
-        let botStandings = leagueState.standings.filter(t => !t.isUser); let relegatedBots = botStandings.slice(-2);
+        // Kích hoạt hiệu ứng ăn mừng 1 lần duy nhất khi kết thúc mùa
+        if (!window.hasCelebratedSeason) {
+            window.hasCelebratedSeason = true;
+            panel.classList.remove('animate-fade-in-scale');
+            void panel.offsetWidth; // Reflow
+            panel.classList.add('animate-fade-in-scale');
+            
+            // Rung phản hồi liên hoàn (Nếu có hỗ trợ Haptic)
+            if(typeof window.playHaptic === 'function') {
+                window.playHaptic('heavy');
+                setTimeout(() => window.playHaptic('heavy'), 300);
+                setTimeout(() => window.playHaptic('heavy'), 600);
+            }
+            
+            // Tạo mưa pháo giấy (Confetti)
+            for(let i=0; i<40; i++) {
+                let conf = document.createElement('div');
+                conf.className = 'confetti-piece text-2xl md:text-3xl drop-shadow-lg';
+                conf.textContent = ['🎊','✨','🏆','🏅','💸','🎉'][Math.floor(Math.random()*6)];
+                conf.style.left = Math.random() * 100 + 'vw';
+                conf.style.animationDelay = Math.random() * 1.5 + 's';
+                conf.style.animationDuration = (Math.random() * 2 + 2.5) + 's';
+                document.body.appendChild(conf);
+                setTimeout(() => conf.remove(), 5000); // Tự dọn rác DOM sau 5s
+            }
+        }
+
+        let userRank = leagueState.standings.findIndex(t => t.isUser) + 1; 
+        let prize = getPrizeMoney(userRank); 
+        document.getElementById('final-rank').textContent = userRank; 
+        document.getElementById('final-prize').textContent = `€${prize.toLocaleString()}`;
+        
+        const summaryBoard = document.getElementById('season-summary-board'); 
+        summaryBoard.className = "w-full max-w-2xl mx-auto flex flex-col"; // Chiếm full width
+        
+        // Lấy chính xác đội Hạng 1, Hạng 11, Hạng 21
+        let goldTeam = leagueState.standings[0]; 
+        let silverTeam = leagueState.standings[10]; 
+        let bronzeTeam = leagueState.standings[20];
+        
+        // Giao diện Bục Vinh Quang 3D
+        let podiumHtml = `
+            <div class="w-full flex flex-col md:flex-row gap-4 justify-center items-end mb-6 pt-4">
+                <!-- Đĩa Bạc (Hạng 11) -->
+                <div class="flex-1 flex flex-col items-center bg-slate-800/90 p-4 rounded-t-xl border-b-4 border-slate-300 shadow-[0_0_15px_rgba(203,213,225,0.2)] order-2 md:order-1 h-32 justify-end relative">
+                    <div class="absolute -top-6 text-5xl drop-shadow-lg">🥈</div>
+                    <div class="text-slate-300 font-black text-sm tracking-widest">HẠNG 11</div>
+                    <div class="text-white font-bold text-center text-sm md:text-base truncate w-full px-1">${silverTeam?.name || 'N/A'}</div>
+                </div>
+                <!-- Cúp Vàng (Hạng 1) -->
+                <div class="flex-[1.2] flex flex-col items-center bg-gradient-to-t from-yellow-900/90 to-yellow-700/50 p-4 rounded-t-xl border-b-4 border-yellow-400 shadow-[0_0_30px_rgba(250,204,21,0.4)] order-1 md:order-2 h-40 justify-end relative animate-pop z-10">
+                    <div class="absolute -top-10 text-7xl drop-shadow-xl animate-bounce">🏆</div>
+                    <div class="text-yellow-400 font-black text-lg tracking-widest drop-shadow-md">VÔ ĐỊCH</div>
+                    <div class="text-white font-bold text-center text-base md:text-lg truncate w-full px-1">${goldTeam?.name || 'N/A'}</div>
+                </div>
+                <!-- Khiên Đồng (Hạng 21) -->
+                <div class="flex-1 flex flex-col items-center bg-slate-800/90 p-4 rounded-t-xl border-b-4 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.2)] order-3 h-28 justify-end relative">
+                    <div class="absolute -top-5 text-4xl drop-shadow-lg">🥉</div>
+                    <div class="text-orange-400 font-black text-sm tracking-widest">HẠNG 21</div>
+                    <div class="text-white font-bold text-center text-sm md:text-base truncate w-full px-1">${bronzeTeam?.name || 'N/A'}</div>
+                </div>
+            </div>
+        `;
+        
+        // Logic Rớt/Thăng hạng
+        let botStandings = leagueState.standings.filter(t => !t.isUser); 
+        let relegatedBots = botStandings.slice(-2); // Bốc chính xác 2 đội bét bảng
         if(!leagueState.promotedBots || leagueState.promotedBots.length === 0) {
             let currentNames = leagueState.standings.map(t => t.name);
             let availableReserves = VN_CLUBS_POOL.filter(name => !currentNames.includes(name));
@@ -1300,14 +1366,40 @@ function renderLeagueView() {
             leagueState.promotedBots = [ { name: availableReserves[0] }, { name: availableReserves[1] } ]; 
             setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState);
         }
-        let relegateBoard = `<div class="flex-1"><h4 class="font-bold text-red-400 mb-2 border-b border-slate-700 pb-1">🔄 Lên / Xuống Hạng</h4><div class="text-red-400">🔻 Rớt hạng: ${relegatedBots.map(b=>b.name).join(', ')}</div><div class="text-green-400 mt-1">🔺 Thăng hạng: ${leagueState.promotedBots.map(b=>b.name).join(', ')}</div></div>`;
-        summaryBoard.innerHTML = goldBoard + relegateBoard;
         
-        const friendlyBtn = document.getElementById('play-friendly-btn'); const playedFriendly = leagueState.friendlyMatchesPlayed || 0;
-        if (playedFriendly >= 5) { friendlyBtn.disabled = true; friendlyBtn.classList.add('opacity-50', 'cursor-not-allowed'); friendlyBtn.textContent = `⚽ Hết lượt Giao Hữu`; } else { friendlyBtn.disabled = false; friendlyBtn.classList.remove('opacity-50', 'cursor-not-allowed'); friendlyBtn.textContent = `⚽ Đá Giao Hữu (${playedFriendly}/5)`; }
+        // Giao diện Lên/Xuống hạng
+        let relegateBoard = `
+            <div class="w-full grid grid-cols-2 gap-4 text-sm mt-2">
+                <div class="bg-red-950/40 p-3 rounded-xl border border-red-900/50 flex flex-col justify-center items-center text-center shadow-inner">
+                    <div class="text-red-500 font-black mb-1 flex items-center gap-1 tracking-widest">🔻 XUỐNG HẠNG</div>
+                    <div class="text-slate-300 font-medium leading-relaxed">${relegatedBots.map(b=>b.name).join('<br>')}</div>
+                </div>
+                <div class="bg-green-950/40 p-3 rounded-xl border border-green-900/50 flex flex-col justify-center items-center text-center shadow-inner">
+                    <div class="text-green-500 font-black mb-1 flex items-center gap-1 tracking-widest">🔺 THĂNG HẠNG</div>
+                    <div class="text-slate-300 font-medium leading-relaxed">${leagueState.promotedBots.map(b=>b.name).join('<br>')}</div>
+                </div>
+            </div>
+        `;
+        
+        summaryBoard.innerHTML = podiumHtml + relegateBoard;
+        
+        const friendlyBtn = document.getElementById('play-friendly-btn'); 
+        const playedFriendly = leagueState.friendlyMatchesPlayed || 0;
+        if (playedFriendly >= 5) { 
+            friendlyBtn.disabled = true; friendlyBtn.classList.add('opacity-50', 'cursor-not-allowed'); friendlyBtn.textContent = `⚽ Hết lượt Giao Hữu`; 
+        } else { 
+            friendlyBtn.disabled = false; friendlyBtn.classList.remove('opacity-50', 'cursor-not-allowed'); friendlyBtn.textContent = `⚽ Đá Giao Hữu (${playedFriendly}/5)`; 
+        }
     } else {
-        document.getElementById('match-setup').classList.remove('hidden'); document.getElementById('season-end-panel').classList.add('hidden'); document.getElementById('league-current-round').textContent = leagueState.currentRound; document.getElementById('league-home-name').textContent = myClubName;
-        const opponentId = leagueState.schedule[leagueState.currentRound - 1]; const opponent = leagueState.standings.find(t => t.id === opponentId); 
+        // Đặt lại cờ ăn mừng nếu chưa tới cuối mùa
+        window.hasCelebratedSeason = false; 
+        document.getElementById('match-setup').classList.remove('hidden'); 
+        document.getElementById('season-end-panel').classList.add('hidden'); 
+        document.getElementById('league-current-round').textContent = leagueState.currentRound; 
+        document.getElementById('league-home-name').textContent = myClubName;
+        
+        const opponentId = leagueState.schedule[leagueState.currentRound - 1]; 
+        const opponent = leagueState.standings.find(t => t.id === opponentId); 
         
         if(opponent) {
             document.getElementById('league-away-name').textContent = opponent.name;
@@ -1323,6 +1415,8 @@ function renderLeagueView() {
             document.getElementById('setup-away-def').textContent = botOvr + ((leagueState.currentRound + 3) % 5 - 2);
         }
     }
+    
+    // Render Bảng xếp hạng giữ nguyên logic
     const tbody = document.getElementById('league-table-body'); tbody.innerHTML = '';
     leagueState.standings.forEach((team, index) => {
         const rank = index + 1; const gd = team.gf - team.ga; let rowClass = "hover:bg-slate-700/30 transition-colors "; if (team.isUser) rowClass += "bg-green-900/30 font-bold "; 
@@ -1569,6 +1663,7 @@ const finishFriendlyMatch = async (totalEarnings) => {
 };
 
 document.getElementById('start-new-season-btn')?.addEventListener('click', async () => {
+    window.hasCelebratedSeason = false;
     showLoading("THIẾT LẬP MÙA GIẢI MỚI...");
     try {
         let botStandings = leagueState.standings.filter(t => !t.isUser); let relegatedBotIds = botStandings.slice(-2).map(b => b.id); leagueState.standings = leagueState.standings.filter(t => !relegatedBotIds.includes(t.id));
