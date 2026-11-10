@@ -320,7 +320,60 @@
 
     <!-- CÁC MODAL -->
     <div id="init-club-modal" class="hidden fixed inset-0 bg-slate-900/90 z-[100] flex items-center justify-center p-4"><div class="bg-slate-800 border border-green-900/50 p-6 md:p-8 rounded-2xl w-full max-w-md shadow-2xl"><h2 class="text-xl md:text-2xl font-bold mb-2 text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-600">Thành lập Câu lạc bộ</h2><p class="text-slate-400 text-xs md:text-sm mb-6">Nhập tên đội bóng để hệ thống khởi tạo đội hình.</p><input type="text" id="club-name-input" placeholder="Tên CLB của bạn" class="w-full px-4 py-3 bg-slate-900/50 border border-slate-700 mb-4 rounded-xl outline-none text-white text-sm md:text-base"><button id="create-club-btn" class="w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl font-bold shadow-lg transition">Nhận Đội Hình</button></div></div>
-    <div id="player-detail-modal" class="hidden fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[100] flex flex-col items-center justify-center p-4"><div class="bg-gradient-to-b from-slate-800 to-slate-900 w-full max-w-sm rounded-2xl border border-slate-600 shadow-2xl relative overflow-hidden flex flex-col max-h-[90vh]"><button id="close-detail-modal" class="absolute top-3 right-4 text-slate-400 hover:text-white z-20 text-xl font-bold">✕</button><div class="p-6 pt-8 text-center relative shrink-0"><div id="detail-bg-pos" class="absolute -top-10 -right-4 text-[100px] md:text-[120px] font-black text-slate-700/20 z-0 pointer-events-none">ST</div><div class="relative z-10"><div class="w-20 h-20 md:w-24 md:h-24 bg-slate-700 border-4 border-slate-500 rounded-full mx-auto mb-3 flex items-center justify-center text-3xl md:text-4xl overflow-hidden shadow-lg">👤</div><h2 id="detail-name" class="text-xl md:text-2xl font-bold text-white mb-1">Tên Cầu Thủ</h2><div class="flex justify-center items-center gap-2 mb-2"><span id="detail-pos" class="bg-blue-600 text-white text-[10px] md:text-xs font-bold px-2 py-1 rounded">POS</span><span class="text-slate-400 text-xs md:text-sm">OVR:</span><span id="detail-ovr" class="text-lg md:text-xl font-bold text-green-400">99</span></div><div class="text-[10px] md:text-xs text-indigo-300 font-medium">Vật phẩm đã dùng: <span id="detail-items-used">0</span>/5</div></div></div><div class="bg-slate-900/50 p-4 md:p-6 border-t border-slate-700 overflow-y-auto hide-scrollbar"><div class="grid grid-cols-2 gap-y-3 gap-x-6 text-xs md:text-sm"><div class="flex justify-between border-b border-slate-700/50 pb-1"><span class="text-slate-400">Tốc độ</span><span id="detail-pac" class="font-bold">0</span></div><div class="flex justify-between border-b border-slate-700/50 pb-1"><span class="text-slate-400">Dứt điểm</span><span id="detail-sho" class="font-bold">0</span></div><div class="flex justify-between border-b border-slate-700/50 pb-1"><span class="text-slate-400">Chuyền</span><span id="detail-pas" class="font-bold">0</span></div><div class="flex justify-between border-b border-slate-700/50 pb-1"><span class="text-slate-400">Kỹ thuật</span><span id="detail-dri" class="font-bold">0</span></div><div class="flex justify-between border-b border-slate-700/50 pb-1"><span class="text-slate-400">Phòng ngự</span><span id="detail-def" class="font-bold">0</span></div><div class="flex justify-between border-b border-slate-700/50 pb-1"><span class="text-slate-400">Thể chất</span><span id="detail-phy" class="font-bold">0</span></div></div><div class="mt-4 space-y-2 text-xs md:text-sm bg-slate-800 p-3 rounded-lg border border-slate-700"><div class="flex justify-between"><span class="text-slate-400">Giá trị:</span><span id="detail-value" class="text-yellow-400 font-bold">€0</span></div></div><div class="mt-4 border-t border-slate-700 pt-4" id="sell-player-container"></div></div></div></div>
+
+    <!-- MODAL CHI TIẾT CẦU THỦ (FUT STYLE) -->
+    <div id="player-detail-modal" class="hidden fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center p-4 opacity-0 transition-opacity duration-300">
+        
+        <!-- Thẻ chứa cầu thủ (JS sẽ can thiệp nền vào id này) -->
+        <div id="player-card-container" class="w-full max-w-[340px] rounded-3xl border-2 border-slate-500 shadow-[0_15px_50px_rgba(0,0,0,0.6)] relative overflow-hidden flex flex-col max-h-[90vh] transition-all duration-300 transform scale-95">
+            
+            <button id="close-detail-modal" class="absolute top-3 right-4 text-white/70 hover:text-white z-30 text-xl font-bold bg-black/40 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm transition">✕</button>
+            
+            <!-- Phần Đầu Thẻ (Header) -->
+            <div class="p-5 pt-8 text-center relative shrink-0">
+                <!-- Vị trí làm mờ ở nền -->
+                <div id="detail-bg-pos" class="absolute -top-4 -left-4 text-[110px] font-black text-white/10 z-0 pointer-events-none leading-none">ST</div>
+                
+                <div class="relative z-10 flex justify-center items-end gap-2 mb-2">
+                    <div class="flex flex-col items-center pb-2">
+                        <span id="detail-ovr" class="text-5xl font-black text-white drop-shadow-md leading-none">99</span>
+                        <span id="detail-pos" class="text-sm font-bold text-white/90 uppercase tracking-widest mt-1">POS</span>
+                    </div>
+                    <!-- Khung Avatar Cắt đáy -->
+                    <div id="detail-avatar-container" class="w-28 h-28 bg-transparent border-b-4 rounded-b-3xl flex items-end justify-center overflow-hidden drop-shadow-2xl z-10 relative">
+                        <!-- Ảnh sẽ được nạp qua JS -->
+                    </div>
+                </div>
+                
+                <h2 id="detail-name" class="text-2xl font-bold text-white tracking-wider uppercase drop-shadow-md mb-1 border-b border-white/20 pb-2 inline-block px-4">Tên Cầu Thủ</h2>
+                <div class="text-[10px] text-white/70 font-medium tracking-widest uppercase mt-1">Vật phẩm đã dùng: <span id="detail-items-used" class="text-white font-bold">0</span>/5</div>
+            </div>
+    
+            <!-- Phần Chỉ Số (Radar Chart) & Action -->
+            <div class="bg-black/50 backdrop-blur-md p-5 flex-1 overflow-y-auto hide-scrollbar flex flex-col border-t border-white/10">
+                
+                <!-- Vùng vẽ Chart.js -->
+                <div class="relative w-full h-48 mb-4">
+                    <canvas id="playerRadarChart"></canvas>
+                </div>
+                
+                <!-- Hành động bên dưới -->
+                <div class="mt-auto space-y-3">
+                    <div class="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-white/10">
+                        <span class="text-white/60 text-[10px] uppercase tracking-widest font-bold">Định giá TTCN</span>
+                        <span id="detail-value" class="text-yellow-400 font-bold text-lg drop-shadow-md">€0</span>
+                    </div>
+                    
+                    <div id="detail-stamina-bar" class="w-full"></div>
+                    
+                    <div id="sell-player-container" class="grid grid-cols-2 gap-2 mt-2">
+                        <!-- Các nút bấm sẽ render ở đây -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <div id="select-player-modal" class="hidden fixed inset-0 bg-slate-900/90 z-[100] flex flex-col items-center justify-center p-4"><div class="bg-slate-800 border border-slate-600 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"><div class="p-4 border-b border-slate-700 flex justify-between items-center"><h3 class="font-bold text-white text-sm md:text-base">Chọn cầu thủ vào sân</h3><button onclick="window.closeBenchSelect()" class="text-slate-400 hover:text-white font-bold text-xl">✕</button></div><div class="overflow-y-auto p-2 text-sm" id="bench-list-container"></div><div class="p-3 md:p-4 border-t border-slate-700"><button onclick="window.removePlayerFromSlot()" class="w-full py-2 md:py-3 bg-red-900/30 hover:bg-red-800/60 border border-red-900/50 text-red-300 rounded-lg font-bold transition text-sm md:text-base">Bỏ trống vị trí này</button></div></div></div>
     <div id="apply-item-modal" class="hidden fixed inset-0 bg-slate-900/90 z-[100] flex flex-col items-center justify-center p-4"><div class="bg-slate-800 border border-indigo-600 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"><div class="p-4 border-b border-slate-700 flex justify-between items-center bg-indigo-900/30"><h3 class="font-bold text-white text-sm md:text-base">Dùng Vật phẩm</h3><button onclick="window.closeApplyItemModal()" class="text-slate-400 hover:text-white font-bold text-xl">✕</button></div><div class="p-3 text-xs md:text-sm text-indigo-300 bg-slate-800 border-b border-slate-700">Đang chọn: <span id="apply-item-name" class="font-bold text-white"></span></div><div class="overflow-y-auto p-2 text-sm" id="apply-item-list-container"></div></div></div>
 
