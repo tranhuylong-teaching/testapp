@@ -493,6 +493,29 @@
             </div>
         </div>
     </div>
+
+    <!-- MODAL THỊ TRƯỜNG BAN HUẤN LUYỆN -->
+    <div id="staff-market-modal" class="hidden fixed inset-0 bg-slate-900/95 backdrop-blur-md z-[9999] flex flex-col items-center justify-center p-4 transition-opacity duration-300 opacity-0">
+        <div class="bg-slate-800 border-2 border-slate-600 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="p-4 border-b border-slate-700 flex justify-between items-center bg-slate-900">
+                <h3 class="font-bold text-white text-lg flex items-center gap-2">👔 Tuyển Dụng Ban Huấn Luyện</h3>
+                <button onclick="window.closeStaffMarket()" class="text-slate-400 hover:text-white font-bold text-xl bg-slate-800 w-8 h-8 rounded-full flex items-center justify-center">✕</button>
+            </div>
+            
+            <div class="flex gap-2 p-3 border-b border-slate-700 bg-slate-800 text-sm overflow-x-auto hide-scrollbar">
+                <button id="tab-staff-physio" onclick="window.renderStaffList('physio')" class="px-4 py-2 font-bold text-green-400 border-b-2 border-green-400 whitespace-nowrap bg-slate-700/50 rounded-t-lg transition">🏥 Bác sĩ trưởng</button>
+                <button id="tab-staff-coach" onclick="window.renderStaffList('coach')" class="px-4 py-2 font-medium text-slate-400 hover:text-white transition whitespace-nowrap rounded-t-lg">📋 Trợ lý HLV</button>
+            </div>
+    
+            <div class="p-3 text-xs text-yellow-400 bg-yellow-900/20 border-b border-yellow-900/50 text-center italic">
+                Lương Ban huấn luyện sẽ được trừ tự động sau mỗi trận đấu.
+            </div>
+    
+            <div class="overflow-y-auto p-4 flex-1 hide-scrollbar bg-slate-900 space-y-4" id="staff-list-container">
+                <!-- Render JS -->
+            </div>
+        </div>
+    </div>
     
     <div id="select-player-modal" class="hidden fixed inset-0 bg-slate-900/90 z-[100] flex flex-col items-center justify-center p-4"><div class="bg-slate-800 border border-slate-600 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"><div class="p-4 border-b border-slate-700 flex justify-between items-center"><h3 class="font-bold text-white text-sm md:text-base">Chọn cầu thủ vào sân</h3><button onclick="window.closeBenchSelect()" class="text-slate-400 hover:text-white font-bold text-xl">✕</button></div><div class="overflow-y-auto p-2 text-sm" id="bench-list-container"></div><div class="p-3 md:p-4 border-t border-slate-700"><button onclick="window.removePlayerFromSlot()" class="w-full py-2 md:py-3 bg-red-900/30 hover:bg-red-800/60 border border-red-900/50 text-red-300 rounded-lg font-bold transition text-sm md:text-base">Bỏ trống vị trí này</button></div></div></div>
     <div id="apply-item-modal" class="hidden fixed inset-0 bg-slate-900/90 z-[100] flex flex-col items-center justify-center p-4"><div class="bg-slate-800 border border-indigo-600 rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[80vh]"><div class="p-4 border-b border-slate-700 flex justify-between items-center bg-indigo-900/30"><h3 class="font-bold text-white text-sm md:text-base">Dùng Vật phẩm</h3><button onclick="window.closeApplyItemModal()" class="text-slate-400 hover:text-white font-bold text-xl">✕</button></div><div class="p-3 text-xs md:text-sm text-indigo-300 bg-slate-800 border-b border-slate-700">Đang chọn: <span id="apply-item-name" class="font-bold text-white"></span></div><div class="overflow-y-auto p-2 text-sm" id="apply-item-list-container"></div></div></div>
