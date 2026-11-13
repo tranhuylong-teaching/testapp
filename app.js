@@ -14,6 +14,23 @@ let activeSubView = null; let activeOpponent = null;
 let myClubLogo = "🛡️"; 
 let myStadiumName = "Sân Nhà"; 
 let myQuest = null;
+let myStaff = { coach: null, physio: null }; // Thêm dòng này
+
+// Khai báo Database Tiers của Staff
+const STAFF_TIERS = {
+    physio: [
+        { id: 'p_c', name: 'Thực tập sinh Y tế', grade: 'C', autoSlots: 1, salary: 5000, desc: 'Tự đưa 1 người vào Y tế.', icon: '🩹' },
+        { id: 'p_b', name: 'Bác sĩ Thể thao', grade: 'B', autoSlots: 2, salary: 15000, desc: 'Tự đưa 2 người vào Y tế.', icon: '🩺' },
+        { id: 'p_a', name: 'Chuyên gia Phục hồi', grade: 'A', autoSlots: 3, salary: 35000, desc: 'Tự đưa 3 người vào Y tế. Giảm 50% tỷ lệ chấn thương.', icon: '⚕️' },
+        { id: 'p_s', name: 'Bàn Tay Vàng', grade: 'S', autoSlots: 99, salary: 80000, desc: 'Lấp đầy Y tế. Toàn đội MIỄN NHIỄM chấn thương.', icon: '👼' }
+    ],
+    coach: [
+        { id: 'c_c', name: 'HLV Phong trào', grade: 'C', autoSlots: 1, salary: 5000, desc: 'Tự đưa 1 tài năng trẻ đi Tập luyện.', icon: '📣' },
+        { id: 'c_b', name: 'HLV Chiến thuật', grade: 'B', autoSlots: 2, salary: 15000, desc: 'Tự đưa 2 tài năng trẻ đi Tập luyện.', icon: '📋' },
+        { id: 'c_a', name: 'Chuyên gia Đào tạo', grade: 'A', autoSlots: 3, salary: 35000, desc: 'Tự đưa 3 tài năng trẻ đi Tập luyện.', icon: '🎓' },
+        { id: 'c_s', name: 'Bộ Não Thiên Tài', grade: 'S', autoSlots: 99, salary: 80000, desc: 'Lấp đầy Tập luyện. Tỷ lệ +2 OVR khi tập.', icon: '🧠' }
+    ]
+};
 
 const TABS = ['club', 'squad', 'league', 'news', 'settings'];
 const POS_COLORS = { 'GK': 'bg-yellow-600', 'DEF': 'bg-blue-600', 'MID': 'bg-green-600', 'FWD': 'bg-red-600' };
@@ -384,6 +401,7 @@ async function loadGameData(uid) {
             myBudget = profileData.budget || 10000000; 
             myFame = profileData.fame || 30;
             myFacilities = profileData.facilities || { medical: 1, scouting: 1, training: 1, finance: 1, scoutingCooldown: 5, scoutedPlayer: null, medicalSlots: [], trainingSlots: [], pendingUpgrade: null };
+            myStaff = profileData.staff || { coach: null, physio: null };
             if(!myFacilities.medicalSlots) myFacilities.medicalSlots = []; if(!myFacilities.trainingSlots) myFacilities.trainingSlots = [];
             if(!myQuest) window.generateNewQuest();
             newsInbox = profileData.news || []; updateHeaderDisplay();
@@ -415,7 +433,9 @@ document.getElementById('create-club-btn')?.addEventListener('click', async () =
     const clubName = document.getElementById('club-name-input').value.trim(); if(!clubName) { showToast("Vui lòng nhập tên CLB!"); return; }
     document.getElementById('create-club-btn').disabled = true; showLoading("ĐANG TẠO ĐỘI HÌNH...");
     try {
-        const batch = writeBatch(db); const userRef = doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'); batch.set(userRef, { clubName: clubName, budget: 10000000, fame: 30, facilities: myFacilities, news: [] });
+        const batch = writeBatch(db); 
+        const userRef = doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'); 
+        batch.set(userRef, { clubName: clubName, budget: 10000000, fame: 30, facilities: myFacilities, news: [], staff: myStaff });
         const INITIAL_POS = ['GK', 'GK', 'DEF', 'DEF', 'DEF', 'DEF', 'DEF', 'MID', 'MID', 'MID', 'MID', 'MID', 'FWD', 'FWD', 'FWD', 'FWD']; const superstarIndex = Math.floor(Math.random() * 16);
         INITIAL_POS.forEach((pos, i) => {
             const isStar = (i === superstarIndex); const ovr = isStar ? Math.floor(Math.random()*21)+75 : Math.floor(Math.random()*16)+30; let stats = { PAC: ovr, SHO: ovr, PAS: ovr, DRI: ovr, DEF: ovr, PHY: ovr };
@@ -1103,6 +1123,26 @@ window.applyItemToPlayer = async (playerId) => {
 window.renderFacilities = function() {
     const container = document.getElementById('facilities-container'); if(!container) return; container.innerHTML = '';
     
+    // UI Staff Panel (Thêm mới)
+    const staffHtml = `
+        <div class="lg:col-span-2 bg-gradient-to-br from-slate-800 to-slate-900 border border-slate-700 rounded-xl p-4 shadow-lg mb-4 flex justify-between items-center">
+            <div>
+                <h3 class="text-white font-bold mb-2 flex items-center gap-2">👔 Ban Huấn Luyện & Y Tế (Staff)</h3>
+                <div class="flex gap-4 text-xs">
+                    <div class="bg-slate-900 p-2 rounded border ${myStaff.physio ? 'border-green-500/50 text-green-400' : 'border-slate-700 text-slate-500'}">
+                        ${myStaff.physio ? `🏥 ${myStaff.physio.name} (Hạng ${myStaff.physio.grade})` : '🏥 Chưa thuê Bác sĩ'}
+                    </div>
+                    <div class="bg-slate-900 p-2 rounded border ${myStaff.coach ? 'border-blue-500/50 text-blue-400' : 'border-slate-700 text-slate-500'}">
+                        ${myStaff.coach ? `📋 ${myStaff.coach.name} (Hạng ${myStaff.coach.grade})` : '📋 Chưa thuê Trợ lý HLV'}
+                    </div>
+                </div>
+            </div>
+            <button onclick="window.openStaffMarket()" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl shadow-lg transition text-sm">Tuyển Dụng</button>
+        </div>
+    `;
+    container.innerHTML = staffHtml;
+
+    // Logic Render tòa nhà cũ giữ nguyên bên dưới
     let medSlotsHtml = `<div class="mt-4 text-[11px] md:text-sm border-t border-slate-700 pt-3"><div class="text-slate-400 mb-2 font-bold">Nằm viện (${myFacilities.medicalSlots.length}/${myFacilities.medical}):</div>`;
     if (myFacilities.medicalSlots.length === 0) medSlotsHtml += `<div class="text-slate-500 italic bg-slate-900 p-2 rounded border border-dashed border-slate-700 text-center">Trống</div>`;
     else { myFacilities.medicalSlots.forEach(id => { const p = globalPlayersMap[id]; if(p) medSlotsHtml += `<div class="flex justify-between items-center text-white bg-slate-900 p-2 rounded mb-1 border border-slate-700"><span>🚑 ${p.name}</span><button onclick="window.removeFromFacility('${id}', 'medical')" class="text-red-400 hover:text-red-300 font-bold text-[10px] md:text-xs bg-red-900/30 px-2 py-1 rounded">Rút ra</button></div>`; }); }
@@ -1195,7 +1235,13 @@ async function processFacilitiesAndStamina() {
     globalPlayersList.forEach(p => {
         if (startingXI.includes(p.id)) {
             p.stamina = Math.max(0, p.stamina - (Math.floor(Math.random() * 11) + 15));
-            if(p.stamina < 30 && Math.random() < 0.4) {
+            
+            // LOGIC NỘI TẠI BÁC SĨ (Giảm hoặc Hủy Chấn thương)
+            let injuryChance = 0.4;
+            if (myStaff.physio && myStaff.physio.grade === 'A') injuryChance = 0.2; // Giảm 50%
+            if (myStaff.physio && myStaff.physio.grade === 'S') injuryChance = 0;   // Miễn nhiễm
+
+            if(p.stamina < 30 && Math.random() < injuryChance) {
                 p.injury = 3; injuryLogs.push(p.name);
                 let idx = startingXI.indexOf(p.id); if(idx !== -1) startingXI[idx] = null;
             }
@@ -1220,7 +1266,15 @@ async function processFacilitiesAndStamina() {
             let p = globalPlayersMap[id];
             if (p && p.injury === 0) {
                 let statsKeys = ['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY']; let rStat = statsKeys[Math.floor(Math.random()*statsKeys.length)];
-                if(p.stats[rStat] < 99) { p.stats[rStat]++; p.ovr = recalculateOVR(p.pos, p.stats); p.value = p.ovr * 100000; trainedLogs.push(p.name); }
+                
+                // LOGIC NỘI TẠI HLV TRƯỞNG (+2 OVR)
+                let statBonus = 1;
+                if (myStaff.coach && myStaff.coach.grade === 'S' && Math.random() < 0.5) statBonus = 2; // 50% cơ hội +2
+                
+                if(p.stats[rStat] < 99) { 
+                    p.stats[rStat] = Math.min(99, p.stats[rStat] + statBonus); 
+                    p.ovr = recalculateOVR(p.pos, p.stats); p.value = p.ovr * 100000; trainedLogs.push(p.name); 
+                }
             }
         });
         if(trainedLogs.length > 0) window.pushNews('Báo cáo Huấn Luyện', `${trainedLogs.join(', ')} đã có sự tiến bộ rõ rệt và tăng +1 OVR sau các buổi tập luyện!`, true);
@@ -1545,9 +1599,14 @@ function startMatchEngine(opponent, isFriendly) {
             let ticketRevenue = currentStadium.capacity * currentStadium.ticketPrice;
             if (isFriendly) ticketRevenue = Math.floor(ticketRevenue * 0.3);
 
+            // Tính Lương Staff
+            let staffSalary = 0;
+            if (myStaff.physio) staffSalary += myStaff.physio.salary;
+            if (myStaff.coach) staffSalary += myStaff.coach.salary;
+
             let income = perfBonus + cleanSheet + bigWin + sponsorMoney + ticketRevenue;
             let financeBonus = Math.floor(income * (myFacilities.finance * 0.05));
-            let totalEarnings = matchFee + income + financeBonus;
+            let totalEarnings = matchFee + income + financeBonus - staffSalary; // Trừ lương Staff
             
             addLog(`<div class="mt-3 mb-2 bg-slate-800 border border-yellow-500/50 p-4 rounded-xl text-xs sm:text-sm shadow-xl animate-fade-in-up">
                 <div class="font-bold text-yellow-400 mb-3 border-b border-slate-700 pb-2 text-center tracking-widest uppercase">📊 Báo cáo Tài chính</div>
@@ -1558,17 +1617,15 @@ function startMatchEngine(opponent, isFriendly) {
                     ${perfBonus ? `<div class="flex justify-between text-slate-300"><span>Thưởng thành tích:</span><span class="text-green-400 font-medium">+ €${perfBonus.toLocaleString()}</span></div>` : ''}
                     ${cleanSheet ? `<div class="flex justify-between text-slate-300"><span>Sạch lưới:</span><span class="text-green-400 font-medium">+ €${cleanSheet.toLocaleString()}</span></div>` : ''}
                     ${bigWin ? `<div class="flex justify-between text-slate-300"><span>Thắng đậm:</span><span class="text-green-400 font-medium">+ €${bigWin.toLocaleString()}</span></div>` : ''}
+                    ${staffSalary > 0 ? `<div class="flex justify-between text-slate-300"><span>Lương Ban huấn luyện:</span><span class="text-red-400 font-medium">- €${staffSalary.toLocaleString()}</span></div>` : ''}
                 </div>
                 <div class="flex justify-between font-bold mt-3 pt-3 border-t border-slate-700 text-sm bg-slate-900/50 p-2 rounded">
-                    <span>Tổng nhận (+€${financeBonus.toLocaleString()} Từ Tài chính):</span>
+                    <span>Tổng nhận:</span>
                     <span class="${totalEarnings > 0 ? 'text-green-400' : 'text-red-400'} text-base">${totalEarnings > 0 ? '+' : ''} €${totalEarnings.toLocaleString()}</span>
                 </div>
             </div>`);
             
-            setTimeout(function() { 
-                const liveMatchView = document.getElementById('match-live'); 
-                liveMatchView.scrollTop = liveMatchView.scrollHeight; 
-            }, 300);
+            setTimeout(function() { const liveMatchView = document.getElementById('match-live'); liveMatchView.scrollTop = liveMatchView.scrollHeight; }, 300);
 
             const finishBtn = document.getElementById('finish-match-btn'); 
             finishBtn.classList.remove('hidden');
@@ -1576,7 +1633,9 @@ function startMatchEngine(opponent, isFriendly) {
             
             finishBtn.onclick = async function() { 
                 finishBtn.textContent = "Đang xử lý ngầm..."; finishBtn.disabled = true; 
-                await processTransferMarket(); await processFacilitiesAndStamina(); 
+                await processTransferMarket(); 
+                await processFacilitiesAndStamina(); 
+                await window.autoAssignFacilities(); // <--- GỌI TỰ ĐỘNG HÓA STAFF SAU KHI CẦU THỦ RA VIỆN
                 finishBtn.textContent = "Lưu thành tích vòng đấu"; finishBtn.disabled = false; 
                 finishBtn.onclick = function() { 
                     if(isFriendly) finishFriendlyMatch(totalEarnings); 
@@ -1783,4 +1842,137 @@ window.generateNewQuest = function() {
     myQuest = quests[Math.floor(Math.random() * quests.length)];
     // Lưu vào Firebase
     setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { quest: myQuest }, { merge: true });
+};
+
+// ================= HỆ THỐNG BAN HUẤN LUYỆN (STAFF) =================
+
+window.openStaffMarket = function() {
+    const modal = document.getElementById('staff-market-modal');
+    modal.classList.remove('hidden');
+    void modal.offsetWidth; 
+    modal.classList.remove('opacity-0');
+    modal.classList.add('opacity-100');
+    window.renderStaffList('physio'); // Mặc định mở tab Bác sĩ
+};
+
+window.closeStaffMarket = function() {
+    const modal = document.getElementById('staff-market-modal');
+    modal.classList.remove('opacity-100');
+    modal.classList.add('opacity-0');
+    setTimeout(() => modal.classList.add('hidden'), 300);
+};
+
+window.renderStaffList = function(role) {
+    // Xử lý UI đổi Tab
+    document.getElementById('tab-staff-physio').className = role === 'physio' 
+        ? "px-4 py-2 font-bold text-green-400 border-b-2 border-green-400 whitespace-nowrap bg-slate-700/50 rounded-t-lg transition" 
+        : "px-4 py-2 font-medium text-slate-400 hover:text-white transition whitespace-nowrap rounded-t-lg";
+    document.getElementById('tab-staff-coach').className = role === 'coach' 
+        ? "px-4 py-2 font-bold text-green-400 border-b-2 border-green-400 whitespace-nowrap bg-slate-700/50 rounded-t-lg transition" 
+        : "px-4 py-2 font-medium text-slate-400 hover:text-white transition whitespace-nowrap rounded-t-lg";
+
+    const container = document.getElementById('staff-list-container');
+    container.innerHTML = '';
+    
+    const staffList = STAFF_TIERS[role];
+    const currentStaffId = myStaff[role] ? myStaff[role].id : null;
+
+    staffList.forEach(s => {
+        const isHired = currentStaffId === s.id;
+        let gradeColor = s.grade === 'S' ? 'text-fuchsia-400 bg-fuchsia-900/30 border-fuchsia-500' : (s.grade === 'A' ? 'text-yellow-400 bg-yellow-900/30 border-yellow-500' : (s.grade === 'B' ? 'text-blue-400 bg-blue-900/30 border-blue-500' : 'text-slate-300 bg-slate-700 border-slate-500'));
+        
+        let actionBtn = isHired 
+            ? `<button onclick="window.fireStaff('${role}')" class="px-4 py-2 bg-red-900/80 hover:bg-red-700 border border-red-500 text-white font-bold rounded-lg transition text-xs shadow-lg">Sa Thải</button>`
+            : `<button onclick="window.hireStaff('${role}', '${s.id}')" class="px-4 py-2 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg transition text-xs shadow-lg whitespace-nowrap">Thuê (Lương €${(s.salary/1000)}k)</button>`;
+
+        container.innerHTML += `
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-800/80 p-4 rounded-xl border border-slate-700 hover:border-slate-500 transition gap-4">
+                <div class="flex items-start gap-4">
+                    <div class="text-4xl drop-shadow-md">${s.icon}</div>
+                    <div>
+                        <div class="flex items-center gap-2 mb-1">
+                            <h4 class="font-bold text-white text-base">${s.name}</h4>
+                            <span class="text-[10px] font-bold px-2 py-0.5 rounded border ${gradeColor}">Hạng ${s.grade}</span>
+                        </div>
+                        <p class="text-xs text-slate-300 mb-1 leading-relaxed">${s.desc}</p>
+                        <p class="text-[10px] text-yellow-400 font-medium">Lương trả sau mỗi vòng đấu: €${s.salary.toLocaleString()}</p>
+                    </div>
+                </div>
+                <div class="w-full sm:w-auto text-right">
+                    ${actionBtn}
+                </div>
+            </div>
+        `;
+    });
+};
+
+window.hireStaff = async function(role, tierId) {
+    const s = STAFF_TIERS[role].find(x => x.id === tierId);
+    if (!s) return;
+    if (confirm(`Ký hợp đồng với [${s.name}]?\nLương: €${s.salary.toLocaleString()}/trận.`)) {
+        showLoading("ĐANG KÝ HỢP ĐỒNG...");
+        try {
+            myStaff[role] = s;
+            await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { staff: myStaff }, { merge: true });
+            window.renderStaffList(role);
+            if(activeSubView === 'facilities') window.renderFacilities();
+            showToast(`Đã bổ nhiệm ${s.name}!`, "success");
+        } catch(e) { showToast("Lỗi kết nối!"); } finally { hideLoading(); }
+    }
+};
+
+window.fireStaff = async function(role) {
+    if (!confirm("Chấm dứt hợp đồng với nhân viên này?")) return;
+    showLoading("ĐANG LÀM THỦ TỤC...");
+    try {
+        myStaff[role] = null;
+        await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { staff: myStaff }, { merge: true });
+        window.renderStaffList(role);
+        if(activeSubView === 'facilities') window.renderFacilities();
+        showToast("Đã sa thải!", "warning");
+    } catch(e) { showToast("Lỗi kết nối!"); } finally { hideLoading(); }
+};
+
+window.autoAssignFacilities = async function() {
+    let autoLogs = [];
+    let updated = false;
+
+    // 1. Bác sĩ (Physio) - Ưu tiên ca chấn thương trước, mệt mỏi sau
+    if (myStaff.physio) {
+        let candidates = globalPlayersList.filter(p => !startingXI.includes(p.id) && !myFacilities.medicalSlots.includes(p.id) && !myFacilities.trainingSlots.includes(p.id) && (p.injury > 0 || p.stamina < 50));
+        candidates.sort((a, b) => {
+            if (a.injury > 0 && b.injury === 0) return -1;
+            if (b.injury > 0 && a.injury === 0) return 1;
+            return a.stamina - b.stamina;
+        });
+
+        let slotsToFill = Math.min(myStaff.physio.autoSlots, myFacilities.medical - myFacilities.medicalSlots.length);
+        let added = 0;
+        for (let p of candidates) {
+            if (added >= slotsToFill) break;
+            myFacilities.medicalSlots.push(p.id);
+            added++;
+        }
+        if (added > 0) { autoLogs.push(`Bác sĩ đưa ${added} ca vào Y tế.`); updated = true; }
+    }
+
+    // 2. Trợ lý HLV (Coach) - Ưu tiên OVR thấp để cày cấp
+    if (myStaff.coach) {
+        let candidates = globalPlayersList.filter(p => !startingXI.includes(p.id) && !myFacilities.medicalSlots.includes(p.id) && !myFacilities.trainingSlots.includes(p.id) && p.injury === 0);
+        candidates.sort((a, b) => a.ovr - b.ovr);
+
+        let slotsToFill = Math.min(myStaff.coach.autoSlots, myFacilities.training - myFacilities.trainingSlots.length);
+        let added = 0;
+        for (let p of candidates) {
+            if (added >= slotsToFill) break;
+            myFacilities.trainingSlots.push(p.id);
+            added++;
+        }
+        if (added > 0) { autoLogs.push(`Trợ lý HLV đưa ${added} mầm non đi Tập luyện.`); updated = true; }
+    }
+    
+    if (updated) {
+        await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { facilities: myFacilities }, { merge: true });
+        window.pushNews('Tự động hóa Cơ sở', autoLogs.join(' '), true);
+    }
 };
