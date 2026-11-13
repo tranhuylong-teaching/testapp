@@ -1635,7 +1635,19 @@ function startMatchEngine(opponent, isFriendly) {
                 finishBtn.textContent = "Đang xử lý ngầm..."; finishBtn.disabled = true; 
                 await processTransferMarket(); 
                 await processFacilitiesAndStamina(); 
-                await window.autoAssignFacilities(); // <--- GỌI TỰ ĐỘNG HÓA STAFF SAU KHI CẦU THỦ RA VIỆN
+                
+                // HIỂN THỊ HÀNH ĐỘNG CỦA STAFF NGAY TRÊN MÀN HÌNH MATCH
+                let staffLog = await window.autoAssignFacilities(); 
+                if (staffLog) {
+                    const logContainer = document.getElementById('match-logs-container');
+                    logContainer.insertAdjacentHTML('beforeend', `<div class="mt-3 mb-2 bg-slate-800/80 border border-slate-600 p-4 rounded-xl text-xs sm:text-sm shadow-xl animate-fade-in-up">
+                        <div class="font-bold text-white mb-2 border-b border-slate-700 pb-2 flex items-center gap-2">👔 Báo cáo Ban Huấn Luyện</div>
+                        <div class="space-y-2">${staffLog}</div>
+                    </div>`);
+                    const liveMatchView = document.getElementById('match-live');
+                    liveMatchView.scrollTop = liveMatchView.scrollHeight; // Cuộn xuống cuối
+                }
+
                 finishBtn.textContent = "Lưu thành tích vòng đấu"; finishBtn.disabled = false; 
                 finishBtn.onclick = function() { 
                     if(isFriendly) finishFriendlyMatch(totalEarnings); 
@@ -1936,14 +1948,25 @@ window.fireStaff = async function(role) {
 window.autoAssignFacilities = async function() {
     let autoLogs = [];
     let updated = false;
+    let medicalAssigned = [];
+    let trainingAssigned = [];
 
-    // 1. Bác sĩ (Physio) - Ưu tiên ca chấn thương trước, mệt mỏi sau
     if (myStaff.physio) {
+        // Bước 1: Rút cưỡng chế các cầu thủ KIỆT SỨC (<30) từ Đội hình chính ra ngoài
+        globalPlayersList.forEach(p => {
+            if (startingXI.includes(p.id) && p.stamina < 30) {
+                let idx = startingXI.indexOf(p.id);
+                if(idx !== -1) startingXI[idx] = null;
+                updated = true;
+            }
+        });
+
+        // Bước 2: Lọc các ca cần cấp cứu (Dự bị, đang chấn thương hoặc thể lực < 50)
         let candidates = globalPlayersList.filter(p => !startingXI.includes(p.id) && !myFacilities.medicalSlots.includes(p.id) && !myFacilities.trainingSlots.includes(p.id) && (p.injury > 0 || p.stamina < 50));
         candidates.sort((a, b) => {
             if (a.injury > 0 && b.injury === 0) return -1;
             if (b.injury > 0 && a.injury === 0) return 1;
-            return a.stamina - b.stamina;
+            return a.stamina - b.stamina; // Ưu tiên người kiệt sức nhất
         });
 
         let slotsToFill = Math.min(myStaff.physio.autoSlots, myFacilities.medical - myFacilities.medicalSlots.length);
@@ -1951,12 +1974,15 @@ window.autoAssignFacilities = async function() {
         for (let p of candidates) {
             if (added >= slotsToFill) break;
             myFacilities.medicalSlots.push(p.id);
+            medicalAssigned.push(p.name);
             added++;
         }
-        if (added > 0) { autoLogs.push(`Bác sĩ đưa ${added} ca vào Y tế.`); updated = true; }
+        if (added > 0) { 
+            autoLogs.push(`🏥 Bác sĩ đã bế vào Y tế: <span class="text-yellow-400 font-bold">${medicalAssigned.join(', ')}</span>`); 
+            updated = true; 
+        }
     }
 
-    // 2. Trợ lý HLV (Coach) - Ưu tiên OVR thấp để cày cấp
     if (myStaff.coach) {
         let candidates = globalPlayersList.filter(p => !startingXI.includes(p.id) && !myFacilities.medicalSlots.includes(p.id) && !myFacilities.trainingSlots.includes(p.id) && p.injury === 0);
         candidates.sort((a, b) => a.ovr - b.ovr);
@@ -1966,13 +1992,21 @@ window.autoAssignFacilities = async function() {
         for (let p of candidates) {
             if (added >= slotsToFill) break;
             myFacilities.trainingSlots.push(p.id);
+            trainingAssigned.push(p.name);
             added++;
         }
-        if (added > 0) { autoLogs.push(`Trợ lý HLV đưa ${added} mầm non đi Tập luyện.`); updated = true; }
+        if (added > 0) { 
+            autoLogs.push(`🏋️ Trợ lý gọi đi Tập kín: <span class="text-blue-400 font-bold">${trainingAssigned.join(', ')}</span>`); 
+            updated = true; 
+        }
     }
     
     if (updated) {
         await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { facilities: myFacilities }, { merge: true });
-        window.pushNews('Tự động hóa Cơ sở', autoLogs.join(' '), true);
+        await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'tactics'), { formation: currentFormation, startingXI: startingXI }, { merge: true });
+        // Đẩy vào hộp thư (Xóa HTML tag để hiển thị đẹp trong list Tin tức)
+        window.pushNews('Staff Tự Động', autoLogs.join('. ').replace(/<[^>]*>?/gm, ''), true); 
+        return autoLogs.join('<br>'); // Trả về HTML để in ra màn hình Match Live
     }
+    return null;
 };
