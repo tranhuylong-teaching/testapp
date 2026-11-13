@@ -2024,22 +2024,26 @@ window.autoAssignFacilities = async function() {
     let medicalAssigned = [];
     let trainingAssigned = [];
 
+    // Nếu người chơi chưa thuê ai, trả về null để ẩn bảng Báo cáo
+    if (!myStaff.physio && !myStaff.coach) return null; 
+
+    // 1. LOGIC CỦA BÁC SĨ (Y TẾ)
     if (myStaff.physio) {
-        // Bước 1: Rút cưỡng chế các cầu thủ KIỆT SỨC (<30) từ Đội hình chính ra ngoài
+        let pulledOut = 0;
         globalPlayersList.forEach(p => {
             if (startingXI.includes(p.id) && p.stamina < 30) {
                 let idx = startingXI.indexOf(p.id);
                 if(idx !== -1) startingXI[idx] = null;
+                pulledOut++;
                 updated = true;
             }
         });
 
-        // Bước 2: Lọc các ca cần cấp cứu (Dự bị, đang chấn thương hoặc thể lực < 50)
         let candidates = globalPlayersList.filter(p => !startingXI.includes(p.id) && !myFacilities.medicalSlots.includes(p.id) && !myFacilities.trainingSlots.includes(p.id) && (p.injury > 0 || p.stamina < 50));
         candidates.sort((a, b) => {
             if (a.injury > 0 && b.injury === 0) return -1;
             if (b.injury > 0 && a.injury === 0) return 1;
-            return a.stamina - b.stamina; // Ưu tiên người kiệt sức nhất
+            return a.stamina - b.stamina;
         });
 
         let slotsToFill = Math.min(myStaff.physio.autoSlots, myFacilities.medical - myFacilities.medicalSlots.length);
@@ -2050,12 +2054,19 @@ window.autoAssignFacilities = async function() {
             medicalAssigned.push(p.name);
             added++;
         }
+        
+        // LUÔN BÁO CÁO DÙ CÓ LÀM VIỆC HAY KHÔNG
         if (added > 0) { 
-            autoLogs.push(`🏥 Bác sĩ đã bế vào Y tế: <span class="text-yellow-400 font-bold">${medicalAssigned.join(', ')}</span>`); 
+            autoLogs.push(`🏥 <b>Y tế:</b> Đã tiếp nhận <span class="text-yellow-400 font-bold">${medicalAssigned.join(', ')}</span>.`); 
             updated = true; 
+        } else if (pulledOut > 0) {
+            autoLogs.push(`🏥 <b>Y tế:</b> Đã rút ${pulledOut} người kiệt sức khỏi sân. Giường bệnh đang đầy!`);
+        } else {
+            autoLogs.push(`🏥 <b>Y tế:</b> Toàn đội dự bị đang khỏe mạnh, không ai cần cấp cứu.`);
         }
     }
 
+    // 2. LOGIC CỦA TRỢ LÝ (TẬP LUYỆN)
     if (myStaff.coach) {
         let candidates = globalPlayersList.filter(p => !startingXI.includes(p.id) && !myFacilities.medicalSlots.includes(p.id) && !myFacilities.trainingSlots.includes(p.id) && p.injury === 0);
         candidates.sort((a, b) => a.ovr - b.ovr);
@@ -2068,18 +2079,24 @@ window.autoAssignFacilities = async function() {
             trainingAssigned.push(p.name);
             added++;
         }
+        
+        // LUÔN BÁO CÁO DÙ CÓ LÀM VIỆC HAY KHÔNG
         if (added > 0) { 
-            autoLogs.push(`🏋️ Trợ lý gọi đi Tập kín: <span class="text-blue-400 font-bold">${trainingAssigned.join(', ')}</span>`); 
+            autoLogs.push(`🏋️ <b>Huấn luyện:</b> Đã gọi đi tập kín <span class="text-blue-400 font-bold">${trainingAssigned.join(', ')}</span>.`); 
             updated = true; 
+        } else {
+            autoLogs.push(`🏋️ <b>Huấn luyện:</b> Trung tâm đang kín chỗ hoặc không còn mầm non phù hợp.`);
         }
     }
     
+    // Lưu Database nếu có thay đổi
     if (updated) {
         await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { facilities: myFacilities }, { merge: true });
         await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'tactics'), { formation: currentFormation, startingXI: startingXI }, { merge: true });
-        // Đẩy vào hộp thư (Xóa HTML tag để hiển thị đẹp trong list Tin tức)
-        window.pushNews('Staff Tự Động', autoLogs.join('. ').replace(/<[^>]*>?/gm, ''), true); 
-        return autoLogs.join('<br>'); // Trả về HTML để in ra màn hình Match Live
+        // Gửi Hộp thư (Regex xóa các thẻ HTML <b> <span> để list text được sạch sẽ)
+        window.pushNews('Báo Cáo Staff', autoLogs.join(' | ').replace(/<[^>]*>?/gm, ''), true); 
     }
-    return null;
+    
+    // LUÔN TRẢ VỀ STRING ĐỂ IN RA MÀN HÌNH MATCH LIVE
+    return autoLogs.join('<br>');
 };
