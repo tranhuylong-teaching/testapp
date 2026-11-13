@@ -409,6 +409,7 @@ async function loadGameData(uid) {
             const pSnap = await getDocs(collection(db, 'artifacts', appId, 'users', uid, 'players')); globalPlayersList = []; globalPlayersMap = {};
             pSnap.forEach(doc => { 
                 const d = doc.data(); d.id = doc.id; d.itemsUsed = d.itemsUsed || 0; 
+                if (d.age === undefined) d.age = Math.floor(Math.random() * 10) + 20;
                 if (!d.stats || isNaN(d.ovr)) { const fallback = Math.floor(Math.random()*20)+50; d.stats = { PAC:fallback, SHO:fallback, PAS:fallback, DRI:fallback, DEF:fallback, PHY:fallback }; d.ovr = recalculateOVR(d.pos, d.stats); setDoc(doc.ref, { stats: d.stats, ovr: d.ovr }, { merge: true }); }
                 if(!d.bonusStats) d.bonusStats = { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }; if (d.stamina === undefined || isNaN(d.stamina)) d.stamina = 100; if(d.injury === undefined) d.injury = 0;
                 globalPlayersList.push(d); globalPlayersMap[d.id] = d; 
@@ -440,7 +441,8 @@ document.getElementById('create-club-btn')?.addEventListener('click', async () =
         INITIAL_POS.forEach((pos, i) => {
             const isStar = (i === superstarIndex); const ovr = isStar ? Math.floor(Math.random()*21)+75 : Math.floor(Math.random()*16)+30; let stats = { PAC: ovr, SHO: ovr, PAS: ovr, DRI: ovr, DEF: ovr, PHY: ovr };
             const playerRef = doc(collection(db, 'artifacts', appId, 'users', currentUserId, 'players'));
-            batch.set(playerRef, { name: generatePlayerName(isStar), pos: pos, ovr: recalculateOVR(pos, stats), stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, stamina: 100, injury: 0, value: ovr * 100000, isListed: false, itemsUsed: 0 });
+            const age = isStar ? 26 : Math.floor(Math.random() * 8) + 18;
+            batch.set(playerRef, { name: generatePlayerName(isStar), pos: pos, ovr: recalculateOVR(pos, stats), stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, stamina: 100, injury: 0, age: age, value: ovr * 100000, isListed: false, itemsUsed: 0 });
         });
         await batch.commit(); await initLeagueData(currentUserId, clubName); document.getElementById('init-club-modal').classList.add('hidden'); showToast("Thành công!", "success"); await loadGameData(currentUserId);
     } catch(e) { showToast("Lỗi tạo CLB!"); } finally { hideLoading(); }
@@ -465,7 +467,11 @@ function renderSquadList() {
         // SỬA w-full THÀNH min-w-[150px]
         tbody.innerHTML += `<tr class="hover:bg-slate-700/50 transition-colors cursor-pointer" onclick="window.openPlayerDetail('${p.id}')">
             <td class="p-3 text-center whitespace-nowrap"><span class="${POS_COLORS[p.pos]} text-white text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-1 rounded w-10 md:w-12 inline-block text-center">${p.pos}</span></td>
-            <td class="p-3 font-medium text-white min-w-[150px]"><div class="whitespace-nowrap truncate max-w-[120px] md:max-w-[200px]">${p.name}</div></td>
+            <td class="p-3 font-medium text-white min-w-[150px]">
+                <div class="whitespace-nowrap truncate max-w-[120px] md:max-w-[200px]">
+                    ${p.name} <span class="text-[10px] text-slate-400 font-normal">(${p.age || 20}T)</span>
+                </div>
+            </td>
             <td class="p-3 text-center whitespace-nowrap"><div class="flex flex-col items-center gap-1 text-[9px] md:text-[10px] ${stColor}"><span>${p.injury>0?'🚑 Chấn thương':`⚡ ${p.stamina}%`}</span>${p.injury > 0 ? '' : `<div class="w-12 bg-slate-700 h-1 rounded-full overflow-hidden hidden sm:block"><div class="${stBg} h-full" style="width: ${p.stamina}%"></div></div>`}</div></td>
             <td class="p-3 text-center font-bold whitespace-nowrap ${rarity.text}">${p.ovr}</td>
             <td class="p-3 text-center whitespace-nowrap">${statusHtml}</td>
@@ -502,6 +508,7 @@ window.openPlayerDetail = function(playerId) {
     document.getElementById('detail-ovr').className = `text-6xl font-black drop-shadow-lg ${rarity.text} leading-none`;
     document.getElementById('detail-items-used').textContent = p.itemsUsed || 0;
     document.getElementById('detail-value').textContent = `€${(p.value || p.ovr*100000).toLocaleString()}`;
+    document.getElementById('detail-age').textContent = p.age || 20;
 
     // Hiển thị Kỹ năng ẩn (Trait)
     const traitBadge = document.getElementById('detail-trait-badge');
@@ -900,6 +907,7 @@ function generateMarketPlayers() {
             bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, 
             stamina: 100, 
             injury: 0, 
+            age: age,
             isListed: false, 
             itemsUsed: 0,
             trait: assignRandomTrait(pos, ovr) // Đã sửa thành pos ở đây
@@ -918,6 +926,12 @@ function renderTransferMarket() {
         tbody.innerHTML += `<tr class="hover:bg-slate-700/50 transition-colors">
             <td class="p-3 text-center whitespace-nowrap"><span class="${POS_COLORS[p.pos]} text-white text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-1 rounded w-10 md:w-12 inline-block text-center">${p.pos}</span></td>
             <td class="p-3 font-medium text-white min-w-[150px]"><div class="whitespace-nowrap">${p.name} ${p.ovr >= 85 ? '<span class="text-[9px] text-yellow-400 ml-1">(Fame > 60)</span>' : ''}</div></td>
+            <td class="p-3 font-medium text-white min-w-[150px]">
+                <div class="whitespace-nowrap truncate max-w-[120px] md:max-w-[200px]">
+                    ${p.name} <span class="text-[10px] text-slate-400 font-normal">(${p.age || 20}T)</span>
+                    ${p.ovr >= 85 ? '<span class="text-[9px] text-yellow-400 ml-1">(Fame > 60)</span>' : ''}
+                </div>
+            </td>
             <td class="p-3 text-center font-bold whitespace-nowrap ${rarity.text}">${p.ovr}</td>
             <td class="p-3 text-right text-yellow-400 whitespace-nowrap">€${p.value.toLocaleString()}</td>
             <td class="p-3 text-center whitespace-nowrap">${isPending ? `<button disabled class="bg-slate-700 text-slate-400 text-[10px] md:text-xs px-2 md:px-3 py-1.5 rounded font-bold cursor-not-allowed">Chờ</button>` : `<button onclick="window.makeBuyOffer('${p.id}')" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] md:text-xs px-2 md:px-3 py-1.5 rounded font-bold shadow transition">Mua</button>`}</td>
@@ -1000,12 +1014,13 @@ window.buyItem = async function(itemId) {
                 const randomPos = POSITIONS[Math.floor(Math.random() * POSITIONS.length)]; // Bốc thăm vị trí
                 let stats = { PAC: ovr+2, SHO: ovr-2, PAS: ovr+1, DRI: ovr, DEF: ovr, PHY: ovr }; 
                 
+                const age = Math.floor(Math.random() * 4) + 17;
                 pendingGachaPlayer = { 
                     name: generatePlayerName(false), 
                     pos: randomPos, 
-                    ovr: recalculateOVR(randomPos, stats), // Đã tính đúng theo vị trí bốc được
+                    ovr: recalculateOVR(randomPos, stats), 
                     stats: stats, bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, 
-                    stamina: 100, injury: 0, value: ovr * 70000, isListed: false, itemsUsed: 0 ,
+                    stamina: 100, injury: 0, age: age, value: ovr * 70000, isListed: false, itemsUsed: 0 ,
                     trait: assignRandomTrait(randomPos, Math.floor(Math.random() * 16) + 60)
                 };
                 
@@ -1810,17 +1825,89 @@ document.getElementById('start-new-season-btn')?.addEventListener('click', async
     window.hasCelebratedSeason = false;
     showLoading("THIẾT LẬP MÙA GIẢI MỚI...");
     try {
-        let botStandings = leagueState.standings.filter(t => !t.isUser); let relegatedBotIds = botStandings.slice(-2).map(b => b.id); leagueState.standings = leagueState.standings.filter(t => !relegatedBotIds.includes(t.id));
-        if (leagueState.promotedBots && leagueState.promotedBots.length === 2) { leagueState.promotedBots.forEach(b => { const ovr = Math.floor(Math.random() * 20) + 60; leagueState.standings.push({ id: `bot_${Date.now()}_${Math.random()}`, name: b.name, isUser: false, ovr: ovr, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 }); }); }
+        let botStandings = leagueState.standings.filter(t => !t.isUser); 
+        let relegatedBotIds = botStandings.slice(-2).map(b => b.id); 
+        leagueState.standings = leagueState.standings.filter(t => !relegatedBotIds.includes(t.id));
+        
+        if (leagueState.promotedBots && leagueState.promotedBots.length === 2) { 
+            leagueState.promotedBots.forEach(b => { 
+                const ovr = Math.floor(Math.random() * 20) + 60; 
+                leagueState.standings.push({ id: `bot_${Date.now()}_${Math.random()}`, name: b.name, isUser: false, ovr: ovr, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, points: 0 }); 
+            }); 
+        }
+        
         leagueState.promotedBots = []; leagueState.currentRound = 1; leagueState.friendlyMatchesPlayed = 0; leagueState.rankHistory = [];
         leagueState.standings.forEach(t => { t.played = 0; t.won = 0; t.drawn = 0; t.lost = 0; t.gf = 0; t.ga = 0; t.points = 0; });
         leagueState.schedule = leagueState.standings.filter(t => !t.isUser).map(b => b.id).sort(() => Math.random() - 0.5);
         
-        const batch = writeBatch(db); globalPlayersList.forEach(p => { p.stamina = 100; p.injury = 0; batch.update(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', p.id), { stamina: 100, injury: 0 }); }); await batch.commit();
+        // ================= LOGIC TUỔI TÁC VÀ LÃO HÓA =================
+        const batch = writeBatch(db); 
+        let retirementLogs = [];
+        let declineLogs = [];
+        let activePlayers = [];
+
+        globalPlayersList.forEach(p => { 
+            p.stamina = 100; 
+            p.injury = 0; 
+            p.age = (p.age || 20) + 1; // Thêm 1 tuổi sau mỗi mùa
+            
+            // Lão hóa: Trên 32 tuổi sẽ bị sụt giảm chỉ số ngẫu nhiên
+            if (p.age >= 32 && p.age < 35) {
+                let declineAmount = Math.floor(Math.random() * 3) + 1; // Trừ từ 1 đến 3 điểm stat
+                let statsKeys = ['PAC', 'SHO', 'PAS', 'DRI', 'DEF', 'PHY'];
+                for(let i = 0; i < declineAmount; i++) {
+                    let rStat = statsKeys[Math.floor(Math.random() * statsKeys.length)];
+                    p.stats[rStat] = Math.max(1, p.stats[rStat] - 1);
+                }
+                p.ovr = recalculateOVR(p.pos, p.stats);
+                p.value = p.ovr * (p.age >= 33 ? 50000 : 80000); // Cầu thủ già rớt giá thê thảm
+                declineLogs.push(p.name);
+            }
+
+            // Giải nghệ: Đạt 35 tuổi
+            if (p.age >= 35) {
+                retirementLogs.push(p.name);
+                let idx = startingXI.indexOf(p.id); 
+                if (idx !== -1) startingXI[idx] = null; // Rút khỏi đội hình chính
+                
+                // Thu hồi Slot Y tế/Tập luyện nếu có
+                myFacilities.medicalSlots = myFacilities.medicalSlots.filter(id => id !== p.id);
+                myFacilities.trainingSlots = myFacilities.trainingSlots.filter(id => id !== p.id);
+                
+                batch.delete(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', p.id));
+                delete globalPlayersMap[p.id];
+            } else {
+                activePlayers.push(p);
+                batch.update(doc(db, 'artifacts', appId, 'users', currentUserId, 'players', p.id), { 
+                    stamina: 100, injury: 0, age: p.age, stats: p.stats, ovr: p.ovr, value: p.value 
+                }); 
+            }
+        }); 
+        
+        globalPlayersList = activePlayers; // Cập nhật lại mảng sau khi lọc người giải nghệ
+        
+        await batch.commit();
         await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'league', 'state'), leagueState);
-        renderSquadList(); renderPitch(); renderLeagueView(); showToast("Mùa giải mới! Thể lực đã hồi phục 100%.", "success");
+        await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), { facilities: myFacilities }, { merge: true });
+        await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'tactics'), { formation: currentFormation, startingXI: startingXI });
+        
+        renderSquadList(); renderPitch(); renderLeagueView(); 
+        
+        // Gửi Hộp thư báo cáo Lão hóa
+        if (retirementLogs.length > 0) {
+            window.pushNews("Treo Giày Giải Nghệ", `Trân trọng cảm ơn những đóng góp vĩ đại của: ${retirementLogs.join(', ')}. Các huyền thoại đã chính thức giã từ sự nghiệp quần đùi áo số do tuổi cao!`, null);
+        }
+        if (declineLogs.length > 0) {
+            window.pushNews("Dấu Hiệu Tuổi Tác", `Các lão tướng: ${declineLogs.join(', ')} đã bước qua sườn dốc sự nghiệp. Thể lực và phản xạ đang có dấu hiệu chậm lại, OVR bắt đầu sụt giảm!`, false);
+        }
+        
+        showToast("Mùa giải mới! Thể lực đã hồi phục 100%.", "success");
         if(document.getElementById('quick-play-btn')) document.getElementById('quick-play-btn').classList.remove('hidden');
-    } catch(e) { showToast("Lỗi!"); } finally { hideLoading(); }
+    } catch(e) { 
+        showToast("Lỗi khởi tạo mùa giải!"); 
+    } finally { 
+        hideLoading(); 
+    }
 });
 
 document.getElementById('quick-play-btn')?.addEventListener('click', () => {
