@@ -457,21 +457,16 @@ async function initLeagueData(uid, overrideName = null) {
 
 function renderSquadList() {
     const tbody = document.getElementById('squad-list-body'); if(!tbody) return; tbody.innerHTML = '';
+    
     [...globalPlayersList].sort((a, b) => (POS_ORDER[a.pos] - POS_ORDER[b.pos] || b.ovr - a.ovr)).forEach(p => {
         let statusHtml = p.isListed ? '<span class="text-[10px] md:text-xs bg-red-900 text-red-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">Chờ bán</span>' : (myFacilities.medicalSlots.includes(p.id) ? '<span class="text-[10px] md:text-xs bg-yellow-900 text-yellow-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">🏥 Y tế</span>' : (myFacilities.trainingSlots.includes(p.id) ? '<span class="text-[10px] md:text-xs bg-blue-900 text-blue-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">🏋️ Tập</span>' : (startingXI.includes(p.id) ? '<span class="text-[10px] md:text-xs bg-green-900 text-green-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">⚽ Sân</span>' : '<span class="text-[10px] md:text-xs bg-slate-700 text-slate-300 px-1 md:px-2 py-1 rounded inline-block whitespace-nowrap w-14 text-center">🪑 Dự bị</span>')));
         const stColor = p.injury > 0 ? 'text-red-500 font-bold' : (p.stamina >= 80 ? 'text-green-400' : (p.stamina >= 50 ? 'text-yellow-400' : 'text-red-400')); 
         const stBg = p.stamina >= 80 ? 'bg-green-400' : (p.stamina >= 50 ? 'bg-yellow-400' : 'bg-red-500'); 
         const rarity = getRarityClass(p.ovr);
         
-        // Trong app.js -> renderSquadList()
-        // SỬA w-full THÀNH min-w-[150px]
         tbody.innerHTML += `<tr class="hover:bg-slate-700/50 transition-colors cursor-pointer" onclick="window.openPlayerDetail('${p.id}')">
             <td class="p-3 text-center whitespace-nowrap"><span class="${POS_COLORS[p.pos]} text-white text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-1 rounded w-10 md:w-12 inline-block text-center">${p.pos}</span></td>
-            <td class="p-3 font-medium text-white min-w-[150px]">
-                <div class="whitespace-nowrap truncate max-w-[120px] md:max-w-[200px]">
-                    ${p.name} <span class="text-[10px] text-slate-400 font-normal">(${p.age || 20}T)</span>
-                </div>
-            </td>
+            <td class="p-3 font-medium text-white min-w-[150px]"><div class="whitespace-nowrap truncate max-w-[120px] md:max-w-[200px]">${p.name} <span class="text-[10px] text-slate-400 font-normal ml-1">(${p.age || 20}T)</span></div></td>
             <td class="p-3 text-center whitespace-nowrap"><div class="flex flex-col items-center gap-1 text-[9px] md:text-[10px] ${stColor}"><span>${p.injury>0?'🚑 Chấn thương':`⚡ ${p.stamina}%`}</span>${p.injury > 0 ? '' : `<div class="w-12 bg-slate-700 h-1 rounded-full overflow-hidden hidden sm:block"><div class="${stBg} h-full" style="width: ${p.stamina}%"></div></div>`}</div></td>
             <td class="p-3 text-center font-bold whitespace-nowrap ${rarity.text}">${p.ovr}</td>
             <td class="p-3 text-center whitespace-nowrap">${statusHtml}</td>
@@ -922,19 +917,14 @@ function generateMarketPlayers() {
 function renderTransferMarket() {
     if(currentMarketList.length === 0) generateMarketPlayers();
     const tbody = document.getElementById('market-list-body'); if(!tbody) return; tbody.innerHTML = '';
+    
     currentMarketList.forEach(p => {
-        let isPending = leagueState.pendingBuys?.find(b => b.marketId === p.id); const rarity = getRarityClass(p.ovr);
-        // Trong app.js -> renderTransferMarket()
-        // SỬA w-full THÀNH min-w-[150px]
+        let isPending = leagueState.pendingBuys?.find(b => b.marketId === p.id); 
+        const rarity = getRarityClass(p.ovr);
+        
         tbody.innerHTML += `<tr class="hover:bg-slate-700/50 transition-colors">
             <td class="p-3 text-center whitespace-nowrap"><span class="${POS_COLORS[p.pos]} text-white text-[10px] md:text-xs font-bold px-1.5 md:px-2 py-1 rounded w-10 md:w-12 inline-block text-center">${p.pos}</span></td>
-            <td class="p-3 font-medium text-white min-w-[150px]"><div class="whitespace-nowrap">${p.name} ${p.ovr >= 85 ? '<span class="text-[9px] text-yellow-400 ml-1">(Fame > 60)</span>' : ''}</div></td>
-            <td class="p-3 font-medium text-white min-w-[150px]">
-                <div class="whitespace-nowrap truncate max-w-[120px] md:max-w-[200px]">
-                    ${p.name} <span class="text-[10px] text-slate-400 font-normal">(${p.age || 20}T)</span>
-                    ${p.ovr >= 85 ? '<span class="text-[9px] text-yellow-400 ml-1">(Fame > 60)</span>' : ''}
-                </div>
-            </td>
+            <td class="p-3 font-medium text-white min-w-[150px]"><div class="whitespace-nowrap">${p.name} <span class="text-[10px] text-slate-400 font-normal ml-1">(${p.age || 20}T)</span> ${p.ovr >= 85 ? '<span class="text-[9px] text-yellow-400 ml-1">(Fame > 60)</span>' : ''}</div></td>
             <td class="p-3 text-center font-bold whitespace-nowrap ${rarity.text}">${p.ovr}</td>
             <td class="p-3 text-right text-yellow-400 whitespace-nowrap">€${p.value.toLocaleString()}</td>
             <td class="p-3 text-center whitespace-nowrap">${isPending ? `<button disabled class="bg-slate-700 text-slate-400 text-[10px] md:text-xs px-2 md:px-3 py-1.5 rounded font-bold cursor-not-allowed">Chờ</button>` : `<button onclick="window.makeBuyOffer('${p.id}')" class="bg-blue-600 hover:bg-blue-500 text-white text-[10px] md:text-xs px-2 md:px-3 py-1.5 rounded font-bold shadow transition">Mua</button>`}</td>
