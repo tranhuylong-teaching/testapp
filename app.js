@@ -892,10 +892,13 @@ function generateMarketPlayers() {
     currentMarketList = []; 
     for(let i = 0; i < 8; i++) { 
         const isStar = Math.random() > 0.8; 
-        const pos = POSITIONS[Math.floor(Math.random() * POSITIONS.length)]; // Đây là biến 'pos'
+        const pos = POSITIONS[Math.floor(Math.random() * POSITIONS.length)]; 
         const ovr = isStar ? Math.floor(Math.random() * 15) + 80 : Math.floor(Math.random() * 20) + 50; 
         const val = ovr * (isStar ? 150000 : 80000); 
         let stats = { PAC: ovr, SHO: ovr, PAS: ovr, DRI: ovr, DEF: ovr, PHY: ovr };
+        
+        // KHAI BÁO TUỔI TẠI ĐÂY (Trước khi push vào mảng)
+        const age = isStar ? Math.floor(Math.random() * 5) + 25 : Math.floor(Math.random() * 12) + 18;
         
         currentMarketList.push({ 
             id: 'market_' + Date.now() + i, 
@@ -907,10 +910,10 @@ function generateMarketPlayers() {
             bonusStats: { PAC:0, SHO:0, PAS:0, DRI:0, DEF:0, PHY:0 }, 
             stamina: 100, 
             injury: 0, 
-            age: age,
+            age: age, // Gọi biến age vừa khai báo ở trên
             isListed: false, 
             itemsUsed: 0,
-            trait: assignRandomTrait(pos, ovr) // Đã sửa thành pos ở đây
+            trait: assignRandomTrait(pos, ovr)
         });
     }
     currentMarketList.sort((a, b) => POS_ORDER[a.pos] - POS_ORDER[b.pos] || b.ovr - a.ovr);
