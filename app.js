@@ -1260,7 +1260,7 @@ async function processFacilitiesAndStamina() {
             if (myStaff.physio && myStaff.physio.grade === 'A') injuryChance = 0.2; // Giảm 50%
             if (myStaff.physio && myStaff.physio.grade === 'S') injuryChance = 0;   // Miễn nhiễm
 
-            if(p.stamina < 30 && Math.random() < injuryChance) {
+            if(p.stamina < 60 && Math.random() < injuryChance) {
                 p.injury = 3; injuryLogs.push(p.name);
                 let idx = startingXI.indexOf(p.id); if(idx !== -1) startingXI[idx] = null;
             }
