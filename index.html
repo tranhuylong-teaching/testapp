@@ -121,16 +121,21 @@
         <main class="flex-1 flex flex-col h-screen overflow-y-auto bg-slate-900/30 relative pb-20 md:pb-0 hide-scrollbar">
             <!-- TOP HEADER INFO -->
             <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 p-3 md:p-4 flex justify-between items-center sticky top-0 z-40">
+                <!-- Trái: Logo + Tên CLB -->
                 <div class="flex items-center gap-2">
-                    <button id="nav-settings-header" class="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-sm text-slate-300 transition" title="Cài đặt">⚙️</button>
-                    <button id="logout-btn" class="hidden md:block px-3 py-1.5 bg-red-900/30 hover:bg-red-800/50 border border-red-900/50 rounded-lg text-xs text-red-400 transition">Đăng xuất</button>
+                    <span id="header-club-logo" class="text-xl">🛡️</span>
+                    <div class="text-sm font-bold text-white max-w-[100px] md:max-w-xs truncate" id="header-club-name">CLB của bạn</div>
                 </div>
-                <div class="flex-1 flex items-center gap-2">
+            
+                <!-- Giữa: Quỹ + Fame -->
+                <div class="flex-1 flex items-center justify-center sm:justify-start gap-2 mx-2">
                     <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-sm"><span class="text-slate-400 mr-1 hidden sm:inline">Quỹ:</span><span id="budget-display" class="text-green-400 font-bold">€0</span></div>
                     <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-sm"><span class="text-slate-400 mr-1 hidden sm:inline">Fame:</span><span id="fame-display" class="text-yellow-400 font-bold">🌟 30</span></div>
                 </div>
-                <div class="flex items-center gap-4">
-                    <div class="text-sm font-bold text-white max-w-[100px] md:max-w-xs truncate" id="header-club-name">CLB của bạn</div>
+            
+                <!-- Phải: Cài đặt + Đăng xuất -->
+                <div class="flex items-center gap-2">
+                    <button id="nav-settings-header" class="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-sm text-slate-300 transition" title="Cài đặt">⚙️</button>
                     <button id="logout-btn" class="hidden md:block px-3 py-1.5 bg-red-900/30 hover:bg-red-800/50 border border-red-900/50 rounded-lg text-xs text-red-400 transition">Đăng xuất</button>
                 </div>
             </header>
