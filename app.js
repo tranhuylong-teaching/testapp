@@ -236,11 +236,6 @@ function renderClubDashboard() {
 function switchView(v) {
     window.closeSubView(false);
     TABS.forEach(id => { 
-
-        document.getElementById('nav-settings-header')?.addEventListener('click', function(e) {
-            e.preventDefault();
-            switchView('settings');
-        });
         
         const vEl = document.getElementById(`view-${id}`); 
         if(vEl) {
@@ -253,6 +248,11 @@ function switchView(v) {
         
         const mEl = document.getElementById(`nav-${id}-mob`); 
         if(mEl) mEl.className = "flex flex-col items-center text-slate-400 hover:text-white transition-colors";
+    });
+
+    document.getElementById('nav-settings-header')?.addEventListener('click', function(e) {
+        e.preventDefault();
+        switchView('settings');
     });
     
     const viewV = document.getElementById(`view-${v}`); 
