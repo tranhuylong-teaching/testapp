@@ -2240,6 +2240,18 @@ async function syncToLeaderboard() {
     }
 }
 
+const PVP_BOTS = [
+    { uid: 'pvp_bot_1', clubName: 'Sài Gòn Legends', logo: '🐉', ovr: 95, pvpPoints: 2250, isBot: true },
+    { uid: 'pvp_bot_2', clubName: 'Thăng Long United', logo: '🔥', ovr: 91, pvpPoints: 1920, isBot: true },
+    { uid: 'pvp_bot_3', clubName: 'Mekong Warriors', logo: '🐊', ovr: 87, pvpPoints: 1680, isBot: true },
+    { uid: 'pvp_bot_4', clubName: 'Đà Nẵng Storm', logo: '⚡', ovr: 83, pvpPoints: 1510, isBot: true },
+    { uid: 'pvp_bot_5', clubName: 'Hải Phòng Anchors', logo: '⚓', ovr: 79, pvpPoints: 1380, isBot: true },
+    { uid: 'pvp_bot_6', clubName: 'Cần Thơ FC', logo: '🌾', ovr: 75, pvpPoints: 1240, isBot: true },
+    { uid: 'pvp_bot_7', clubName: 'Mỹ Tho Phoenix', logo: '🦅', ovr: 72, pvpPoints: 1120, isBot: true },
+    { uid: 'pvp_bot_8', clubName: 'Vũng Tàu Waves', logo: '🌊', ovr: 68, pvpPoints: 1030, isBot: true },
+    { uid: 'pvp_bot_9', clubName: 'Tây Nguyên Eagles', logo: '⛰️', ovr: 64, pvpPoints: 960, isBot: true },
+    { uid: 'pvp_bot_10', clubName: 'Phú Quốc Sharks', logo: '🦈', ovr: 60, pvpPoints: 890, isBot: true }
+];
 async function renderPvpView() {
     const today = getTodayKey();
     if (myPvp.lastPlayDate !== today) {
@@ -2270,6 +2282,12 @@ async function renderPvpView() {
                 serverLeaderboard.push(data);
             }
         });
+
+        if (serverLeaderboard.length < 15) {
+            PVP_BOTS.forEach(function(bot) {
+                serverLeaderboard.push(bot);
+            });
+        }
 
         serverLeaderboard.sort(function(a, b) {
             if ((b.pvpPoints || 1000) !== (a.pvpPoints || 1000)) return (b.pvpPoints || 1000) - (a.pvpPoints || 1000);
