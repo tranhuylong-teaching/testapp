@@ -110,6 +110,7 @@
             <nav class="flex-1 p-4 space-y-2">
                 <a href="#" id="nav-club" class="block px-4 py-3 bg-green-900/40 text-green-400 font-medium rounded-lg border border-green-900/50">🏢 Câu lạc bộ</a>
                 <a href="#" id="nav-squad" class="block px-4 py-3 hover:bg-slate-800 text-slate-300 rounded-lg border border-transparent">👕 Đội hình</a>
+                <a href="#" id="nav-pvp" class="block px-4 py-3 hover:bg-slate-800 text-slate-300 rounded-lg border border-transparent">⚔️ Đấu trường PvP</a>
                 <a href="#" id="nav-league" class="block px-4 py-3 hover:bg-slate-800 text-slate-300 rounded-lg border border-transparent">🏆 Giải đấu</a>
                 <a href="#" id="nav-news" class="block px-4 py-3 hover:bg-slate-800 text-slate-300 rounded-lg border border-transparent flex justify-between">📰 Tin tức <span id="news-badge-pc" class="hidden bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">Mới</span></a>
                 <a href="#" id="nav-settings" class="block px-4 py-3 hover:bg-slate-800 text-slate-300 rounded-lg border border-transparent">⚙️ Cài đặt</a>
@@ -121,8 +122,8 @@
             <!-- TOP HEADER INFO -->
             <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 p-3 md:p-4 flex justify-between items-center sticky top-0 z-40">
                 <div class="flex items-center gap-2">
-                    <span id="header-club-logo" class="text-xl">🛡️</span>
-                    <div class="text-sm font-bold text-white max-w-[100px] md:max-w-xs truncate" id="header-club-name">CLB của bạn</div>
+                    <button id="nav-settings-header" class="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-sm text-slate-300 transition" title="Cài đặt">⚙️</button>
+                    <button id="logout-btn" class="hidden md:block px-3 py-1.5 bg-red-900/30 hover:bg-red-800/50 border border-red-900/50 rounded-lg text-xs text-red-400 transition">Đăng xuất</button>
                 </div>
                 <div class="flex-1 flex items-center gap-2">
                     <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-sm"><span class="text-slate-400 mr-1 hidden sm:inline">Quỹ:</span><span id="budget-display" class="text-green-400 font-bold">€0</span></div>
@@ -315,6 +316,63 @@
                     </div>
                 </div>
 
+                <!-- ================= 2.5 HUB: ĐẤU TRƯỜNG PVP & RANK SERVER ================= -->
+                <div id="view-pvp" class="hidden space-y-5">
+                    <div class="flex items-center justify-between">
+                        <h2 class="text-2xl font-bold text-white flex items-center gap-2">⚔️ Đấu Trường PvP</h2>
+                        <button onclick="window.renderPvpView()" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-600 px-3 py-1.5 rounded-lg text-slate-300 font-bold transition">🔄 Làm mới</button>
+                    </div>
+                
+                    <!-- Thẻ Rank Cá Nhân -->
+                    <div class="bg-gradient-to-br from-indigo-950 via-slate-800 to-slate-900 border border-indigo-500/40 rounded-2xl p-5 shadow-xl">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                            <div class="flex items-center gap-4">
+                                <div id="pvp-my-rank-icon" class="w-16 h-16 rounded-2xl bg-slate-900/80 border-2 border-indigo-400 flex items-center justify-center text-4xl shadow-lg">🥉</div>
+                                <div>
+                                    <div class="text-xs text-slate-400 uppercase font-bold tracking-wider">Bậc Rank Hiện Tại</div>
+                                    <div id="pvp-my-rank-name" class="text-xl font-black text-amber-400">Đồng</div>
+                                    <div class="text-xs text-slate-300 mt-0.5">Điểm: <span id="pvp-my-points" class="font-bold text-white">1000</span> • Thành tích: <span id="pvp-my-record" class="text-green-400 font-bold">0T - 0H - 0B</span></div>
+                                </div>
+                            </div>
+                            <div class="w-full sm:w-auto flex flex-col items-stretch sm:items-end gap-2">
+                                <div class="text-xs text-slate-300 bg-slate-900/70 px-3 py-1.5 rounded-lg border border-slate-700 text-center">
+                                    Lượt hôm nay: <span id="pvp-daily-plays" class="font-black text-yellow-400">0/5</span>
+                                </div>
+                                <button onclick="window.quickMatchPvp()" class="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold rounded-xl shadow-lg transition text-sm">
+                                    ⚡ Ghép Trận Ngẫu Nhiên
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mt-3 pt-3 border-t border-white/10 text-[11px] text-slate-400 flex flex-wrap gap-3">
+                            <span>🛡️ Không mất thể lực & không chấn thương</span>
+                            <span>💰 Thắng: +25đ & €150k (+10đ nếu thắng đội OVR cao hơn)</span>
+                        </div>
+                    </div>
+                
+                    <!-- Bảng Xếp Hạng Toàn Server -->
+                    <div class="bg-slate-800/80 rounded-2xl border border-slate-700/50 overflow-hidden shadow-xl">
+                        <div class="p-4 border-b border-slate-700/50 flex justify-between items-center bg-slate-800">
+                            <h3 class="font-bold text-white text-sm">🌍 Top 50 Toàn Server</h3>
+                            <span class="text-[11px] text-slate-400">Chọn CLB bất kỳ để thách đấu</span>
+                        </div>
+                        <div class="overflow-x-auto hide-scrollbar">
+                            <table class="w-full text-left border-collapse text-xs min-w-max">
+                                <thead>
+                                    <tr class="bg-slate-900/50 text-slate-400 uppercase text-[10px]">
+                                        <th class="p-3 text-center">#</th>
+                                        <th class="p-3 min-w-[150px]">Câu Lạc Bộ</th>
+                                        <th class="p-3 text-center">OVR</th>
+                                        <th class="p-3 text-center">Rank</th>
+                                        <th class="p-3 text-center">Điểm</th>
+                                        <th class="p-3 text-center">Thách Đấu</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pvp-leaderboard-body" class="divide-y divide-slate-700/30"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
 
                 <!-- ================= 3. HUB: GIẢI ĐẤU ================= -->
                 <div id="view-league" class="hidden space-y-6">
@@ -376,10 +434,9 @@
         <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-slate-900/95 backdrop-blur-lg border-t border-slate-800 z-[90] flex justify-around px-2 py-2">
             <a href="#" id="nav-club-mob" class="flex flex-col items-center text-green-400 transition-colors"><span class="text-2xl leading-none">🏢</span><span class="text-[9px] font-medium mt-1">CLB</span></a>
             <a href="#" id="nav-squad-mob" class="flex flex-col items-center text-slate-400 hover:text-white transition-colors"><span class="text-2xl leading-none">👕</span><span class="text-[9px] font-medium mt-1">Đội hình</span></a>
-            <div class="w-10"></div> <!-- Spacer for visual balance -->
+            <a href="#" id="nav-pvp-mob" class="flex flex-col items-center text-slate-400 hover:text-white transition-colors"><span class="text-2xl leading-none">⚔️</span><span class="text-[9px] font-medium mt-1">PvP</span></a>
             <a href="#" id="nav-league-mob" class="flex flex-col items-center text-slate-400 hover:text-white transition-colors"><span class="text-2xl leading-none">🏆</span><span class="text-[9px] font-medium mt-1">Giải đấu</span></a>
             <a href="#" id="nav-news-mob" class="flex flex-col items-center text-slate-400 hover:text-white transition-colors relative"><span class="text-2xl leading-none">📰</span><span class="text-[9px] font-medium mt-1">Tin tức</span><span id="news-badge-mob" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-[8px] font-bold w-3 h-3 flex items-center justify-center rounded-full">!</span></a>
-            <a href="#" id="nav-settings-mob" class="flex flex-col items-center text-slate-400 hover:text-white transition-colors"><span class="text-2xl leading-none">⚙️</span><span class="text-[9px] font-medium mt-1">Cài đặt</span></a>
         </nav>
     </div>
 
