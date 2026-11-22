@@ -32,7 +32,9 @@ const STAFF_TIERS = {
     ]
 };
 
-const TABS = ['club', 'squad', 'league', 'news', 'settings'];
+const TABS = ['club', 'squad', 'pvp', 'league', 'news', 'settings'];
+let myPvp = { points: 1000, wins: 0, losses: 0, draws: 0, dailyPlays: 0, lastPlayDate: '' };
+let serverLeaderboard = [];
 const POS_COLORS = { 'GK': 'bg-yellow-600', 'DEF': 'bg-blue-600', 'MID': 'bg-green-600', 'FWD': 'bg-red-600' };
 const POS_ORDER = { 'GK': 1, 'DEF': 2, 'MID': 3, 'FWD': 4 };
 window.showToast = showToast; window.showLoading = showLoading; window.hideLoading = hideLoading;
@@ -234,6 +236,12 @@ function renderClubDashboard() {
 function switchView(v) {
     window.closeSubView(false);
     TABS.forEach(id => { 
+
+        document.getElementById('nav-settings-header')?.addEventListener('click', function(e) {
+            e.preventDefault();
+            switchView('settings');
+        });
+        
         const vEl = document.getElementById(`view-${id}`); 
         if(vEl) {
             vEl.classList.add('hidden'); 
@@ -270,6 +278,7 @@ function switchView(v) {
         document.getElementById('setting-club-logo').value = myClubLogo;
         document.getElementById('setting-stadium-name').value = myStadiumName;
     }
+    if(v === 'pvp') renderPvpView();
 }
 
 // 2. HÀM MỞ SUB-VIEW (Giao diện phụ như Chiến thuật, Cửa hàng)
@@ -402,6 +411,7 @@ async function loadGameData(uid) {
             myFame = profileData.fame || 30;
             myFacilities = profileData.facilities || { medical: 1, scouting: 1, training: 1, finance: 1, scoutingCooldown: 5, scoutedPlayer: null, medicalSlots: [], trainingSlots: [], pendingUpgrade: null };
             myStaff = profileData.staff || { coach: null, physio: null };
+            myPvp = profileData.pvp || { points: 1000, wins: 0, losses: 0, draws: 0, dailyPlays: 0, lastPlayDate: '' };
             if(!myFacilities.medicalSlots) myFacilities.medicalSlots = []; if(!myFacilities.trainingSlots) myFacilities.trainingSlots = [];
             if(!myQuest) window.generateNewQuest();
             newsInbox = profileData.news || []; updateHeaderDisplay();
@@ -423,6 +433,7 @@ async function loadGameData(uid) {
                 startingXI.forEach((val, index) => { if(!val) { let best = globalPlayersList.filter(p => !usedIds.has(p.id)).sort((a,b)=>b.ovr - a.ovr)[0]; if(best) { startingXI[index] = best.id; usedIds.add(best.id); } } });
             }
             calcTeamPower();
+            syncToLeaderboard();
             const leagueSnap = await getDoc(doc(db, 'artifacts', appId, 'users', uid, 'league', 'state'));
             if (leagueSnap.exists()) { leagueState = leagueSnap.data(); if (!leagueState.promotedBots) leagueState.promotedBots = []; if (!leagueState.pendingBuys) leagueState.pendingBuys = []; if (!leagueState.pendingSells) leagueState.pendingSells = []; if (!leagueState.rankHistory) leagueState.rankHistory = []; } else { await initLeagueData(uid, myClubName); }
             switchView('club'); if (leagueState.currentRound <= 31 && document.getElementById('quick-play-btn')) document.getElementById('quick-play-btn').classList.remove('hidden');
@@ -1487,7 +1498,7 @@ function renderLeagueView() {
     });
 }
 
-function startMatchEngine(opponent, isFriendly) {
+function startMatchEngine(opponent, isFriendly, isPvp) {
     if(startingXI.includes(null) || teamPower.OVR === 0) { showToast("Xếp đủ 11 cầu thủ vào Sân!"); return; }
     let lowStaminaCount = startingXI.filter(id => globalPlayersMap[id] && globalPlayersMap[id].stamina < 30).length; 
     if (lowStaminaCount >= 3) showToast("Cảnh báo: Đội có nhiều người kiệt sức. Dễ chấn thương!", "warning");
@@ -1668,6 +1679,17 @@ function startMatchEngine(opponent, isFriendly) {
         if (minute >= 90) {
             clearInterval(matchTimer); 
             addLog('<div class="text-yellow-400 font-black text-center mt-4 mb-2 text-xl uppercase tracking-widest drop-shadow-md animate-fade-in-up">HẾT GIỜ!</div>');
+
+            if (isPvp) {
+                const finishBtn = document.getElementById('finish-match-btn');
+                finishBtn.textContent = "Nhận Điểm Rank & Quay Về PvP";
+                finishBtn.classList.remove('hidden');
+                finishBtn.classList.add('animate-fade-in-up');
+                finishBtn.onclick = function() {
+                    finishPvpMatch(homeScore, awayScore, opponent);
+                };
+                return;
+            }
             
             let matchFee = isFriendly ? 0 : -50000; 
             let perfBonus = (homeScore > awayScore) ? (isFriendly ? 50000 : 300000) : (homeScore === awayScore ? (isFriendly ? 20000 : 100000) : 0);
@@ -2180,3 +2202,205 @@ window.autoAssignFacilities = async function() {
     // LUÔN TRẢ VỀ STRING ĐỂ IN RA MÀN HÌNH MATCH LIVE
     return autoLogs.join('<br>');
 };
+
+// ================= MODULE ĐẤU TRƯỜNG PVP & RANK SERVER =================
+
+function getTodayKey() {
+    return new Date().toISOString().slice(0, 10);
+}
+
+function getPvpRankInfo(points) {
+    if (points >= 2100) return { name: 'Huyền Thoại', icon: '👑', color: 'text-fuchsia-400' };
+    if (points >= 1800) return { name: 'Kim Cương', icon: '💎', color: 'text-cyan-400' };
+    if (points >= 1500) return { name: 'Bạch Kim', icon: '💠', color: 'text-teal-300' };
+    if (points >= 1300) return { name: 'Vàng', icon: '🥇', color: 'text-yellow-400' };
+    if (points >= 1100) return { name: 'Bạc', icon: '🥈', color: 'text-slate-300' };
+    return { name: 'Đồng', icon: '🥉', color: 'text-amber-500' };
+}
+
+async function syncToLeaderboard() {
+    if (!currentUserId || !myClubName) return;
+    try {
+        await setDoc(doc(db, 'artifacts', appId, 'leaderboard', currentUserId), {
+            uid: currentUserId,
+            clubName: myClubName,
+            logo: myClubLogo || '🛡️',
+            ovr: teamPower.OVR || 0,
+            att: teamPower.ATT || 0,
+            mid: teamPower.MID || 0,
+            def: teamPower.DEF || 0,
+            formation: currentFormation || '4-4-2',
+            pvpPoints: myPvp.points || 1000,
+            pvpWins: myPvp.wins || 0,
+            pvpLosses: myPvp.losses || 0,
+            updatedAt: Date.now()
+        }, { merge: true });
+    } catch (e) {
+        console.error('Lỗi đồng bộ BXH:', e);
+    }
+}
+
+async function renderPvpView() {
+    const today = getTodayKey();
+    if (myPvp.lastPlayDate !== today) {
+        myPvp.dailyPlays = 0;
+        myPvp.lastPlayDate = today;
+    }
+
+    const rank = getPvpRankInfo(myPvp.points);
+    document.getElementById('pvp-my-rank-icon').textContent = rank.icon;
+    const rankNameEl = document.getElementById('pvp-my-rank-name');
+    rankNameEl.textContent = rank.name;
+    rankNameEl.className = `text-xl font-black ${rank.color}`;
+    document.getElementById('pvp-my-points').textContent = myPvp.points;
+    document.getElementById('pvp-my-record').textContent = `${myPvp.wins}T - ${myPvp.draws || 0}H - ${myPvp.losses}B`;
+    document.getElementById('pvp-daily-plays').textContent = `${myPvp.dailyPlays}/5`;
+
+    const tbody = document.getElementById('pvp-leaderboard-body');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-400 italic">Đang tải Bảng Xếp Hạng...</td></tr>';
+
+    try {
+        await syncToLeaderboard();
+        const snap = await getDocs(collection(db, 'artifacts', appId, 'leaderboard'));
+        serverLeaderboard = [];
+        snap.forEach(function(d) {
+            const data = d.data();
+            if (data && data.clubName && data.ovr > 0) {
+                serverLeaderboard.push(data);
+            }
+        });
+
+        serverLeaderboard.sort(function(a, b) {
+            if ((b.pvpPoints || 1000) !== (a.pvpPoints || 1000)) return (b.pvpPoints || 1000) - (a.pvpPoints || 1000);
+            return (b.ovr || 0) - (a.ovr || 0);
+        });
+
+        const top50 = serverLeaderboard.slice(0, 50);
+        tbody.innerHTML = '';
+
+        if (top50.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-slate-500 italic">Chưa có CLB nào trên BXH.</td></tr>';
+            return;
+        }
+
+        top50.forEach(function(club, idx) {
+            const isMe = club.uid === currentUserId;
+            const cRank = getPvpRankInfo(club.pvpPoints || 1000);
+            const logoHtml = (club.logo && club.logo.startsWith('http'))
+                ? `<img src="${club.logo}" class="w-5 h-5 rounded-full object-contain inline mr-1.5" />`
+                : `<span class="mr-1.5">${club.logo || '🛡️'}</span>`;
+
+            const actionHtml = isMe
+                ? `<span class="text-[10px] text-green-400 font-bold bg-green-900/40 px-2 py-1 rounded">CLB Bạn</span>`
+                : `<button onclick="window.challengePvpOpponent('${club.uid}')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow transition">⚔️ Đấu</button>`;
+
+            tbody.innerHTML += `
+                <tr class="${isMe ? 'bg-green-900/30 font-bold' : 'hover:bg-slate-700/40'} transition-colors">
+                    <td class="p-3 text-center font-mono text-slate-400">${idx + 1}</td>
+                    <td class="p-3 min-w-[150px] whitespace-nowrap ${isMe ? 'text-green-400' : 'text-white'}">${logoHtml}${club.clubName}</td>
+                    <td class="p-3 text-center font-black text-yellow-400">${club.ovr}</td>
+                    <td class="p-3 text-center whitespace-nowrap ${cRank.color} font-bold">${cRank.icon} ${cRank.name}</td>
+                    <td class="p-3 text-center font-bold text-white">${club.pvpPoints || 1000}</td>
+                    <td class="p-3 text-center whitespace-nowrap">${actionHtml}</td>
+                </tr>
+            `;
+        });
+    } catch (e) {
+        tbody.innerHTML = '<tr><td colspan="6" class="p-6 text-center text-red-400">Không thể tải BXH. Kiểm tra quyền Firestore Rules!</td></tr>';
+    }
+}
+
+function quickMatchPvp() {
+    const rivals = serverLeaderboard.filter(function(c) { return c.uid !== currentUserId; });
+    if (rivals.length === 0) {
+        showToast("Chưa có đối thủ nào khác trên server!", "warning");
+        return;
+    }
+    const randomRival = rivals[Math.floor(Math.random() * rivals.length)];
+    challengePvpOpponent(randomRival.uid);
+}
+
+function challengePvpOpponent(targetUid) {
+    if (startingXI.includes(null) || teamPower.OVR === 0) {
+        showToast("Xếp đủ 11 cầu thủ vào Sân trước khi đá PvP!", "error");
+        return;
+    }
+    const today = getTodayKey();
+    if (myPvp.lastPlayDate !== today) {
+        myPvp.dailyPlays = 0;
+        myPvp.lastPlayDate = today;
+    }
+    if (myPvp.dailyPlays >= 5) {
+        showToast("Bạn đã hết 5 lượt PvP hôm nay! Hãy quay lại vào ngày mai.", "warning");
+        return;
+    }
+    const rival = serverLeaderboard.find(function(c) { return c.uid === targetUid; });
+    if (!rival) {
+        showToast("Không tìm thấy đối thủ!", "error");
+        return;
+    }
+    const opponentObj = {
+        id: rival.uid,
+        name: rival.clubName,
+        ovr: rival.ovr,
+        pvpPoints: rival.pvpPoints || 1000
+    };
+    switchView('league');
+    startMatchEngine(opponentObj, false, true);
+}
+
+async function finishPvpMatch(homeScore, awayScore, opponent) {
+    showLoading("ĐANG CẬP NHẬT RANK PVP...");
+    try {
+        let pointsDelta = 0;
+        let rewardMoney = 0;
+        const today = getTodayKey();
+
+        if (homeScore > awayScore) {
+            myPvp.wins = (myPvp.wins || 0) + 1;
+            pointsDelta = 25 + (opponent.ovr > teamPower.OVR ? 10 : 0);
+            rewardMoney = 150000;
+        } else if (homeScore === awayScore) {
+            myPvp.draws = (myPvp.draws || 0) + 1;
+            pointsDelta = 5;
+            rewardMoney = 50000;
+        } else {
+            myPvp.losses = (myPvp.losses || 0) + 1;
+            pointsDelta = -15;
+        }
+
+        myPvp.points = Math.max(800, (myPvp.points || 1000) + pointsDelta);
+        myPvp.dailyPlays = (myPvp.dailyPlays || 0) + 1;
+        myPvp.lastPlayDate = today;
+        myBudget += rewardMoney;
+
+        updateHeaderDisplay();
+        await setDoc(doc(db, 'artifacts', appId, 'users', currentUserId, 'profile', 'info'), {
+            budget: myBudget,
+            pvp: myPvp
+        }, { merge: true });
+        await syncToLeaderboard();
+
+        document.getElementById('match-live').classList.add('hidden');
+        document.getElementById('league-table-container').classList.remove('hidden');
+        toggleNavLock(false);
+        if (leagueState.currentRound <= 31 && document.getElementById('quick-play-btn')) {
+            document.getElementById('quick-play-btn').classList.remove('hidden');
+        }
+
+        const msg = pointsDelta >= 0
+            ? `⚔️ PvP kết thúc! +${pointsDelta} điểm Rank & +€${rewardMoney.toLocaleString()}`
+            : `⚔️ PvP thất bại! ${pointsDelta} điểm Rank.`;
+        showToast(msg, pointsDelta >= 0 ? "success" : "warning");
+        switchView('pvp');
+    } catch (e) {
+        showToast("Lỗi lưu kết quả PvP!", "error");
+    } finally {
+        hideLoading();
+    }
+}
+
+window.renderPvpView = renderPvpView;
+window.quickMatchPvp = quickMatchPvp;
+window.challengePvpOpponent = challengePvpOpponent;
