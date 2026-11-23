@@ -39,7 +39,6 @@
         }
         .animate-shake { animation: shake 0.3s ease-in-out; }
 
-        /* Bổ sung vào thẻ <style> trong index.html */
         @keyframes fadeInScale {
             from { opacity: 0; transform: scale(0.98); }
             to { opacity: 1; transform: scale(1); }
@@ -48,14 +47,12 @@
             animation: fadeInScale 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; 
         }
 
-        /* Sửa lại sân cỏ trong thẻ <style> của index.html */
         .football-pitch { 
             background: linear-gradient(180deg, #064e3b 0%, #022c22 100%); 
             border: 2px solid rgba(52, 211, 153, 0.5); 
             box-shadow: 0 0 25px rgba(16, 185, 129, 0.3) inset, 0 5px 15px rgba(0,0,0,0.5);
             position: relative;
         }
-        /* Vẽ vạch sân phát sáng */
         .football-pitch::before {
             content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 2px;
             background: rgba(255, 255, 255, 0.3); transform: translateY(-50%);
@@ -72,7 +69,6 @@
         .backface-hidden { backface-visibility: hidden; }
         .rotate-y-180 { transform: rotateY(180deg); }
 
-        /* Hiệu ứng pháo giấy (Confetti) */
         @keyframes confettiFall {
             0% { transform: translateY(-10vh) rotate(0deg); opacity: 1; }
             100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
@@ -121,19 +117,16 @@
         <main class="flex-1 flex flex-col h-screen overflow-y-auto bg-slate-900/30 relative pb-20 md:pb-0 hide-scrollbar">
             <!-- TOP HEADER INFO -->
             <header class="bg-slate-900/90 backdrop-blur-md border-b border-slate-800 p-3 md:p-4 flex justify-between items-center sticky top-0 z-40">
-                <!-- Trái: Logo + Tên CLB -->
                 <div class="flex items-center gap-2">
                     <span id="header-club-logo" class="text-xl">🛡️</span>
                     <div class="text-sm font-bold text-white max-w-[100px] md:max-w-xs truncate" id="header-club-name">CLB của bạn</div>
                 </div>
             
-                <!-- Giữa: Quỹ + Fame -->
                 <div class="flex-1 flex items-center justify-center sm:justify-start gap-2 mx-2">
                     <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-sm"><span class="text-slate-400 mr-1 hidden sm:inline">Quỹ:</span><span id="budget-display" class="text-green-400 font-bold">€0</span></div>
                     <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700 text-sm"><span class="text-slate-400 mr-1 hidden sm:inline">Fame:</span><span id="fame-display" class="text-yellow-400 font-bold">🌟 30</span></div>
                 </div>
             
-                <!-- Phải: Cài đặt + Đăng xuất -->
                 <div class="flex items-center gap-2">
                     <button id="nav-settings-header" class="p-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-lg text-sm text-slate-300 transition" title="Cài đặt">⚙️</button>
                     <button id="logout-btn" class="hidden md:block px-3 py-1.5 bg-red-900/30 hover:bg-red-800/50 border border-red-900/50 rounded-lg text-xs text-red-400 transition">Đăng xuất</button>
@@ -170,22 +163,18 @@
                 
                     <!-- HÀNG 2: BIỂU ĐỒ & NHÀ TÀI TRỢ -->
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-                        <!-- Biểu đồ thứ hạng mùa giải -->
                         <div class="lg:col-span-2 bg-slate-800 border border-slate-700 p-4 md:p-5 rounded-xl shadow-lg">
                             <h3 class="font-bold text-white mb-4 flex items-center gap-2">📈 Biểu đồ thứ hạng</h3>
                             <div class="h-48 md:h-64 w-full relative"><canvas id="rankChart"></canvas></div>
                         </div>
                         
-                        <!-- Danh sách sự kiện & Tài trợ -->
                         <div class="bg-slate-800 border border-slate-700 p-4 md:p-5 rounded-xl shadow-lg flex flex-col h-full max-h-[300px] lg:max-h-full">
                             <h3 class="font-bold text-white mb-4 flex items-center gap-2">🤝 Dòng tiền & Tài trợ</h3>
-                            <div id="sponsor-events-list" class="flex-1 overflow-y-auto space-y-3 hide-scrollbar pr-1">
-                                <!-- Render bằng JS -->
-                            </div>
+                            <div id="sponsor-events-list" class="flex-1 overflow-y-auto space-y-3 hide-scrollbar pr-1"></div>
                         </div>
                     </div>
                 
-                    <!-- HÀNG 3: NÚT ĐIỀU HƯỚNG CŨ -->
+                    <!-- HÀNG 3: KHU TỔ HỢP -->
                     <h3 class="text-lg font-bold text-white mt-6 mb-2 border-b border-slate-700 pb-2">Khu tổ hợp Câu lạc bộ</h3>
                     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div onclick="window.openSubView('facilities')" class="card-hover cursor-pointer bg-gradient-to-br from-blue-900/60 to-slate-800 border border-blue-500/30 p-5 md:p-6 rounded-2xl shadow-lg transition hover:border-blue-400">
@@ -215,11 +204,7 @@
                         <button onclick="window.closeSubView()" class="bg-slate-800 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg border border-slate-600 transition shadow">⬅ Quay lại</button>
                         <h2 class="text-2xl font-bold">Sân vận động</h2>
                     </div>
-                    
-                    <!-- Container này sẽ được JavaScript nạp dữ liệu động -->
-                    <div id="stadium-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <!-- Render bởi renderStadium() -->
-                    </div>
+                    <div id="stadium-container" class="grid grid-cols-1 lg:grid-cols-2 gap-6"></div>
                 </div>
 
                 <!-- 1.3 SUB-VIEW: PHÒNG TRUYỀN THỐNG -->
@@ -254,11 +239,9 @@
                     <div class="bg-slate-800/80 rounded-2xl border border-slate-700/50 overflow-hidden shadow-xl">
                         <div class="overflow-x-auto hide-scrollbar">
                             <table class="w-full text-left border-collapse min-w-max">
-                                <!-- Trong index.html -->
                                 <thead>
                                     <tr class="bg-slate-900/50 text-slate-400 text-[10px] md:text-xs uppercase">
                                         <th class="p-3 text-center whitespace-nowrap">Vị trí</th>
-                                        <!-- SỬA w-full THÀNH min-w-[150px] -->
                                         <th class="p-3 min-w-[150px]">Cầu thủ</th> 
                                         <th class="p-3 text-center whitespace-nowrap">Thể lực</th>
                                         <th class="p-3 text-center whitespace-nowrap">OVR</th>
@@ -299,11 +282,9 @@
                         <div class="p-4 border-b border-slate-700/50 flex justify-between items-center bg-slate-800"><h3 class="font-bold text-white text-sm">Cầu thủ Đang Rao Bán</h3><button id="refresh-market-btn" class="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded font-bold text-yellow-400 transition whitespace-nowrap border border-slate-600">Làm mới (-€10k)</button></div>
                         <div class="overflow-x-auto hide-scrollbar">
                             <table class="w-full text-left border-collapse min-w-max">
-                                <!-- Trong index.html -->
                                 <thead>
                                     <tr class="bg-slate-900/50 text-slate-400 text-[10px] uppercase">
                                         <th class="p-3 text-center whitespace-nowrap">Vị trí</th>
-                                        <!-- SỬA w-full THÀNH min-w-[150px] -->
                                         <th class="p-3 min-w-[150px]">Cầu thủ</th>
                                         <th class="p-3 text-center whitespace-nowrap">OVR</th>
                                         <th class="p-3 text-right whitespace-nowrap">Giá Mua</th>
@@ -328,7 +309,6 @@
                         <button onclick="window.renderPvpView()" class="text-xs bg-slate-800 hover:bg-slate-700 border border-slate-600 px-3 py-1.5 rounded-lg text-slate-300 font-bold transition">🔄 Làm mới</button>
                     </div>
                 
-                    <!-- Thẻ Rank Cá Nhân -->
                     <div class="bg-gradient-to-br from-indigo-950 via-slate-800 to-slate-900 border border-indigo-500/40 rounded-2xl p-5 shadow-xl">
                         <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                             <div class="flex items-center gap-4">
@@ -354,7 +334,6 @@
                         </div>
                     </div>
                 
-                    <!-- Bảng Xếp Hạng Toàn Server -->
                     <div class="bg-slate-800/80 rounded-2xl border border-slate-700/50 overflow-hidden shadow-xl">
                         <div class="p-4 border-b border-slate-700/50 flex justify-between items-center bg-slate-800">
                             <h3 class="font-bold text-white text-sm">🌍 Top 50 Toàn Server</h3>
@@ -385,7 +364,71 @@
                     
                     <div id="match-setup" class="bg-slate-800 rounded-2xl border border-slate-700/50 p-4 shadow-xl relative overflow-hidden"><div class="flex justify-between items-center mb-4"><h2 class="text-base md:text-lg font-bold text-white">Vòng Đấu <span id="league-current-round" class="text-green-400">1</span>/31</h2></div><div class="grid grid-cols-3 gap-2 items-center mb-6"><div class="text-center flex flex-col items-center"><div class="w-12 h-12 bg-green-900/50 rounded-full flex items-center justify-center text-xl border border-green-500 mb-1 shadow-[0_0_10px_rgba(34,197,94,0.3)]">🛡️</div><h3 class="font-bold text-[10px] sm:text-xs truncate w-full" id="league-home-name">Đội bạn</h3><div class="text-2xl font-black text-green-400" id="setup-home-ovr">0</div></div><div class="flex flex-col gap-1.5 text-[9px] sm:text-[10px] font-bold uppercase text-slate-400"><div class="text-center text-lg font-black text-slate-500 mb-1">VS</div><div class="flex justify-between items-center bg-slate-900/50 rounded px-1 py-1"><span class="text-green-400 w-5 text-center" id="setup-home-att">0</span><span class="text-center flex-1">TC</span><span class="text-red-400 w-5 text-center" id="setup-away-att">0</span></div><div class="flex justify-between items-center bg-slate-900/50 rounded px-1 py-1"><span class="text-green-400 w-5 text-center" id="setup-home-mid">0</span><span class="text-center flex-1">TV</span><span class="text-red-400 w-5 text-center" id="setup-away-mid">0</span></div><div class="flex justify-between items-center bg-slate-900/50 rounded px-1 py-1"><span class="text-green-400 w-5 text-center" id="setup-home-def">0</span><span class="text-center flex-1">PN</span><span class="text-red-400 w-5 text-center" id="setup-away-def">0</span></div></div><div class="text-center flex flex-col items-center"><div class="w-12 h-12 bg-red-900/50 rounded-full flex items-center justify-center text-xl border border-red-500 mb-1">🤖</div><h3 class="font-bold text-[10px] sm:text-xs text-slate-300 truncate w-full" id="league-away-name">Đang tải...</h3><div class="text-2xl font-black text-red-400" id="setup-away-ovr">0</div></div></div><div class="text-center"><button id="start-league-match-btn" class="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 text-white font-bold rounded-xl shadow-[0_4px_15px_rgba(34,197,94,0.4)] transition text-sm">Vào Sân Thi Đấu ⚽</button></div></div>
                     
-                    <div id="match-live" class="hidden flex flex-col h-[calc(100vh-200px)] md:h-[calc(100vh-140px)] gap-4"><div class="bg-slate-800 border border-slate-700 rounded-xl p-3 flex justify-between items-center shadow-lg"><div class="text-center w-1/3"><h3 class="font-bold text-xs sm:text-sm truncate" id="live-home-name">Home</h3></div><div class="text-center w-1/3 flex flex-col items-center"><div class="bg-slate-900 border border-slate-700 px-3 py-1 rounded-lg text-xl sm:text-2xl font-mono font-bold"><span id="score-home">0</span> - <span id="score-away">0</span></div><div class="mt-1 text-[10px] font-bold text-yellow-400">Phút <span id="match-minute">0</span>'</div></div><div class="text-center w-1/3"><h3 class="font-bold text-xs sm:text-sm truncate" id="live-away-name">Away</h3></div></div><div class="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-3 overflow-y-auto flex flex-col gap-2 text-xs sm:text-sm" id="match-logs-container"></div><button id="finish-match-btn" class="hidden w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl shadow-lg transition text-sm">Tiếp tục</button></div>
+                    <!-- LIVE MATCH ARENA -->
+                    <div id="match-live" class="hidden flex flex-col h-[calc(100vh-195px)] md:h-[calc(100vh-135px)] gap-2.5">
+                        <!-- Bảng tỷ số & Điều khiển trận đấu -->
+                        <div class="bg-slate-800 border border-slate-700 rounded-xl p-3 shadow-lg space-y-2.5">
+                            <div class="flex justify-between items-center">
+                                <div class="text-center w-1/3">
+                                    <h3 class="font-bold text-xs sm:text-sm truncate text-white" id="live-home-name">Home</h3>
+                                    <div class="text-[10px] font-bold text-green-400 mt-0.5">OVR <span id="live-home-ovr">0</span></div>
+                                </div>
+                                <div class="text-center w-1/3 flex flex-col items-center">
+                                    <div class="bg-slate-900 border border-slate-700 px-3 py-1 rounded-lg text-xl sm:text-2xl font-mono font-bold">
+                                        <span id="score-home">0</span> - <span id="score-away">0</span>
+                                    </div>
+                                    <div id="match-clock-badge" class="mt-1 text-[10px] font-bold text-yellow-400">
+                                        Phút <span id="match-minute">0</span>'
+                                    </div>
+                                </div>
+                                <div class="text-center w-1/3">
+                                    <h3 class="font-bold text-xs sm:text-sm truncate text-white" id="live-away-name">Away</h3>
+                                    <div class="text-[10px] font-bold text-red-400 mt-0.5">OVR <span id="live-away-ovr">0</span></div>
+                                </div>
+                            </div>
+
+                            <!-- Thanh tác vụ giữa trận -->
+                            <div id="live-control-bar" class="flex items-center justify-between gap-2 pt-2 border-t border-slate-700/80">
+                                <button type="button" onclick="window.openMatchSubModal()" id="live-sub-btn" class="flex-1 py-1.5 px-2.5 bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold rounded-lg text-xs flex items-center justify-center gap-1.5 shadow transition">
+                                    <span>⏸️ Thay người</span>
+                                    <span class="bg-black/30 px-1.5 py-0.5 rounded text-[10px]" id="live-subs-count">0/5</span>
+                                </button>
+                                <button type="button" onclick="window.toggleMatchSpeed()" id="live-speed-btn" class="py-1.5 px-3 bg-slate-700 hover:bg-slate-600 active:scale-95 text-slate-200 font-bold rounded-lg text-xs border border-slate-600 transition whitespace-nowrap">
+                                    ⏩ x1
+                                </button>
+                            </div>
+
+                            <!-- Trạng thái chỉ đạo đang kích hoạt -->
+                            <div id="live-shout-status" class="hidden text-[11px] font-bold text-center py-1 px-2 rounded-lg bg-amber-950/60 border border-amber-500/40 text-amber-300"></div>
+                        </div>
+
+                        <!-- Khung bình luận trực tiếp -->
+                        <div class="flex-1 bg-slate-900 border border-slate-700 rounded-xl p-3 overflow-y-auto flex flex-col gap-2 text-xs sm:text-sm" id="match-logs-container"></div>
+
+                        <!-- 3 Nút chỉ đạo bên đường biên -->
+                        <div id="touchline-shouts-bar" class="bg-slate-800/95 border border-slate-700 rounded-xl p-2.5 shadow-lg">
+                            <div class="flex justify-between items-center mb-1.5 px-1">
+                                <span class="text-[10px] font-bold uppercase tracking-wider text-slate-400">📣 Chỉ đạo đường biên</span>
+                                <span class="text-[10px] font-bold text-yellow-400" id="shouts-remaining">Còn 3/3 lượt</span>
+                            </div>
+                            <div class="grid grid-cols-3 gap-2">
+                                <button type="button" id="shout-btn-all_out" onclick="window.triggerTouchlineShout('all_out')" class="py-2 px-1.5 bg-gradient-to-b from-red-600/90 to-red-800/90 hover:from-red-500 hover:to-red-700 active:scale-95 text-white font-bold rounded-lg border border-red-400/40 text-[11px] sm:text-xs flex flex-col items-center justify-center shadow transition">
+                                    <span>🔥 Tổng lực</span>
+                                    <span class="text-[9px] text-red-200 font-normal">+Công / -Thủ</span>
+                                </button>
+                                <button type="button" id="shout-btn-park_bus" onclick="window.triggerTouchlineShout('park_bus')" class="py-2 px-1.5 bg-gradient-to-b from-sky-600/90 to-sky-800/90 hover:from-sky-500 hover:to-sky-700 active:scale-95 text-white font-bold rounded-lg border border-sky-400/40 text-[11px] sm:text-xs flex flex-col items-center justify-center shadow transition">
+                                    <span>🛡️ Tử thủ</span>
+                                    <span class="text-[9px] text-sky-200 font-normal">+Thủ / -Công</span>
+                                </button>
+                                <button type="button" id="shout-btn-encourage" onclick="window.triggerTouchlineShout('encourage')" class="py-2 px-1.5 bg-gradient-to-b from-emerald-600/90 to-emerald-800/90 hover:from-emerald-500 hover:to-emerald-700 active:scale-95 text-white font-bold rounded-lg border border-emerald-400/40 text-[11px] sm:text-xs flex flex-col items-center justify-center shadow transition">
+                                    <span>📣 Ép sân</span>
+                                    <span class="text-[9px] text-emerald-200 font-normal">Xóa mệt mỏi</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <button id="finish-match-btn" class="hidden w-full py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold rounded-xl shadow-lg transition text-sm">Tiếp tục</button>
+                    </div>
                     
                     <div id="league-table-container" class="bg-slate-800/80 rounded-2xl border border-slate-700/50 overflow-hidden shadow-xl mt-4"><div class="overflow-x-auto hide-scrollbar"><table class="w-full text-left border-collapse text-[10px] sm:text-xs min-w-max"><thead><tr class="bg-slate-900/50 text-slate-400 uppercase"><th class="p-2 sm:p-3 text-center">#</th><th class="p-2 sm:p-3 min-w-[150px]">Câu Lạc Bộ</th><th class="p-2 sm:p-3 text-center">Tr</th><th class="p-2 sm:p-3 text-center">T</th><th class="p-2 sm:p-3 text-center">H</th><th class="p-2 sm:p-3 text-center">B</th><th class="p-2 sm:p-3 text-center">HS</th><th class="p-2 sm:p-3 text-center font-bold text-white">Đ</th></tr></thead><tbody id="league-table-body" class="divide-y divide-slate-700/30"></tbody></table></div></div>
                 </div>
@@ -450,33 +493,18 @@
 
     <!-- MODAL CHI TIẾT CẦU THỦ (FUT STYLE) -->
     <div id="player-detail-modal" class="hidden fixed inset-0 bg-slate-900/90 backdrop-blur-sm z-[9999] flex flex-col items-center justify-center p-4 opacity-0 transition-opacity duration-300">
-        
-        <!-- Thẻ chứa cầu thủ (JS sẽ can thiệp nền vào id này) -->
         <div id="player-card-container" class="w-full max-w-[340px] rounded-3xl border-2 border-slate-500 shadow-[0_15px_50px_rgba(0,0,0,0.6)] relative overflow-hidden flex flex-col max-h-[90vh] transition-all duration-300 transform scale-95">
-            
             <button id="close-detail-modal" class="absolute top-3 right-4 text-white/70 hover:text-white z-30 text-xl font-bold bg-black/40 w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm transition">✕</button>
-            
-            <!-- Phần Đầu Thẻ (Header) -->
             <div class="p-5 pt-8 text-center relative shrink-0">
-                <!-- Vị trí làm mờ ở nền -->
                 <div id="detail-bg-pos" class="absolute -top-4 -left-4 text-[110px] font-black text-white/10 z-0 pointer-events-none leading-none">ST</div>
-                
                 <div class="relative z-10 flex justify-center items-end gap-2 mb-2">
                     <div class="flex flex-col items-center pb-2">
                         <span id="detail-ovr" class="text-5xl font-black text-white drop-shadow-md leading-none">99</span>
                         <span id="detail-pos" class="text-sm font-bold text-white/90 uppercase tracking-widest mt-1">POS</span>
                     </div>
-                    <!-- Khung Avatar Cắt đáy -->
-                    <div id="detail-avatar-container" class="w-28 h-28 bg-transparent border-b-4 rounded-b-3xl flex items-end justify-center overflow-hidden drop-shadow-2xl z-10 relative">
-                        <!-- Ảnh sẽ được nạp qua JS -->
-                    </div>
-
-                    <!-- BỔ SUNG: Badge Kỹ Năng Ẩn -->
-                    <div id="detail-trait-badge" class="absolute -bottom-2 right-2 w-8 h-8 rounded-full bg-slate-900 border-2 border-yellow-400 flex items-center justify-center text-sm shadow-[0_0_10px_rgba(250,204,21,0.8)] z-20 hidden group" title="Kỹ năng đặc biệt">
-                        <!-- JS sẽ chèn icon vào đây -->
-                    </div>
+                    <div id="detail-avatar-container" class="w-28 h-28 bg-transparent border-b-4 rounded-b-3xl flex items-end justify-center overflow-hidden drop-shadow-2xl z-10 relative"></div>
+                    <div id="detail-trait-badge" class="absolute -bottom-2 right-2 w-8 h-8 rounded-full bg-slate-900 border-2 border-yellow-400 flex items-center justify-center text-sm shadow-[0_0_10px_rgba(250,204,21,0.8)] z-20 hidden group" title="Kỹ năng đặc biệt"></div>
                 </div>
-                
                 <h2 id="detail-name" class="text-2xl font-bold text-white tracking-wider uppercase drop-shadow-md mb-1 border-b border-white/20 pb-2 inline-block px-4">Tên Cầu Thủ</h2>
                 <div class="text-[10px] text-white/70 font-medium tracking-widest uppercase mt-1 flex justify-center gap-3">
                     <span>Tuổi: <span id="detail-age" class="text-white font-bold">20</span></span>
@@ -484,27 +512,17 @@
                     <span>Vật phẩm đã dùng: <span id="detail-items-used" class="text-white font-bold">0</span>/5</span>
                 </div>
             </div>
-    
-            <!-- Phần Chỉ Số (Radar Chart) & Action -->
             <div class="bg-black/50 backdrop-blur-md p-5 flex-1 overflow-y-auto hide-scrollbar flex flex-col border-t border-white/10">
-                
-                <!-- Vùng vẽ Chart.js -->
                 <div class="relative w-full h-48 mb-4">
                     <canvas id="playerRadarChart"></canvas>
                 </div>
-                
-                <!-- Hành động bên dưới -->
                 <div class="mt-auto space-y-3">
                     <div class="flex justify-between items-center bg-black/40 p-3 rounded-xl border border-white/10">
                         <span class="text-white/60 text-[10px] uppercase tracking-widest font-bold">Định giá TTCN</span>
                         <span id="detail-value" class="text-yellow-400 font-bold text-lg drop-shadow-md">€0</span>
                     </div>
-                    
                     <div id="detail-stamina-bar" class="w-full"></div>
-                    
-                    <div id="sell-player-container" class="grid grid-cols-2 gap-2 mt-2">
-                        <!-- Các nút bấm sẽ render ở đây -->
-                    </div>
+                    <div id="sell-player-container" class="grid grid-cols-2 gap-2 mt-2"></div>
                 </div>
             </div>
         </div>
@@ -513,50 +531,34 @@
     <!-- MODAL LẬT THẺ GACHA -->
     <div id="gacha-modal" class="hidden fixed inset-0 bg-black/95 backdrop-blur-md z-[9999] flex flex-col items-center justify-center p-4 transition-opacity duration-500 opacity-0">
         <h2 id="gacha-title" class="text-yellow-400 font-bold text-xl md:text-2xl tracking-widest uppercase mb-10 animate-pulse drop-shadow-[0_0_10px_rgba(250,204,21,0.8)]">Phát hiện Tài năng trẻ</h2>
-        
         <div class="relative w-64 h-96 perspective-1000 cursor-pointer group" id="gacha-card-wrapper" onclick="window.flipGachaCard()">
             <div id="gacha-card-inner" class="w-full h-full transition-transform duration-700 transform-style-3d relative shadow-[0_0_50px_rgba(250,204,21,0.4)] rounded-2xl group-hover:scale-105">
-                
-                <!-- Mặt trước thẻ (Bìa) -->
                 <div class="absolute inset-0 backface-hidden bg-gradient-to-br from-yellow-500 via-amber-700 to-yellow-900 rounded-2xl border-4 border-yellow-300 flex flex-col items-center justify-center pattern-dots">
                     <div class="text-7xl drop-shadow-lg mb-4">✨</div>
                     <div class="text-yellow-100 font-black tracking-widest text-2xl uppercase drop-shadow-md">TOP SECRET</div>
                     <div class="text-xs text-yellow-200 mt-4 italic bg-black/30 px-3 py-1 rounded-full">Bấm để lật thẻ!</div>
                 </div>
-                
-                <!-- Mặt sau thẻ (Kết quả Cầu thủ) -->
-                <div class="absolute inset-0 backface-hidden rotate-y-180 rounded-2xl border-4 flex flex-col items-center justify-center overflow-hidden" id="gacha-result-face">
-                    <!-- Nội dung sẽ được JS chèn vào -->
-                </div>
+                <div class="absolute inset-0 backface-hidden rotate-y-180 rounded-2xl border-4 flex flex-col items-center justify-center overflow-hidden" id="gacha-result-face"></div>
             </div>
         </div>
-        
         <button id="close-gacha-btn" onclick="window.closeGachaModal()" class="hidden absolute bottom-12 px-8 py-3 bg-white/10 hover:bg-white/20 text-white rounded-full font-bold backdrop-blur-md transition border border-white/30 animate-fade-in-up">Đưa vào Đội hình</button>
     </div>
 
     <!-- MODAL ÉP THẺ (FUSION) -->
     <div id="fuse-player-modal" class="hidden fixed inset-0 bg-black/90 backdrop-blur-md z-[9999] flex flex-col items-center justify-center p-4 transition-opacity duration-300 opacity-0">
         <div class="bg-slate-900 border-2 border-fuchsia-600 rounded-3xl w-full max-w-md shadow-[0_0_30px_rgba(217,70,239,0.3)] overflow-hidden flex flex-col max-h-[85vh] relative">
-            <!-- Header -->
             <div class="p-4 border-b border-fuchsia-900/50 flex justify-between items-center bg-gradient-to-r from-fuchsia-900/40 to-slate-900">
                 <h3 class="font-black text-transparent bg-clip-text bg-gradient-to-r from-fuchsia-400 to-pink-600 text-lg uppercase tracking-widest">Lò Luyện Thẻ</h3>
                 <button onclick="window.closeFuseModal()" class="text-slate-400 hover:text-white font-bold text-xl w-8 h-8 flex items-center justify-center bg-black/30 rounded-full">✕</button>
             </div>
-            
-            <!-- Target Info -->
             <div class="p-4 bg-black/50 border-b border-slate-700/50 flex items-center justify-between">
                 <div class="text-sm text-slate-300 font-bold uppercase">Đang nâng cấp:</div>
                 <div id="fuse-target-name" class="font-black text-fuchsia-400 text-lg drop-shadow-md">Tên Cầu Thủ</div>
             </div>
-    
             <div class="p-3 text-xs text-center text-slate-400 italic bg-fuchsia-950/20">
                 Chọn 1 cầu thủ làm "Phôi". Phôi sẽ bị <span class="text-red-400 font-bold">XÓA VĨNH VIỄN</span> sau khi ép.
             </div>
-    
-            <!-- Danh sách Phôi -->
-            <div class="overflow-y-auto p-2 flex-1 hide-scrollbar" id="fuse-list-container">
-                <!-- Render JS -->
-            </div>
+            <div class="overflow-y-auto p-2 flex-1 hide-scrollbar" id="fuse-list-container"></div>
         </div>
     </div>
 
@@ -567,18 +569,58 @@
                 <h3 class="font-bold text-white text-lg flex items-center gap-2">👔 Tuyển Dụng Ban Huấn Luyện</h3>
                 <button onclick="window.closeStaffMarket()" class="text-slate-400 hover:text-white font-bold text-xl bg-slate-800 w-8 h-8 rounded-full flex items-center justify-center">✕</button>
             </div>
-            
             <div class="flex gap-2 p-3 border-b border-slate-700 bg-slate-800 text-sm overflow-x-auto hide-scrollbar">
                 <button id="tab-staff-physio" onclick="window.renderStaffList('physio')" class="px-4 py-2 font-bold text-green-400 border-b-2 border-green-400 whitespace-nowrap bg-slate-700/50 rounded-t-lg transition">🏥 Bác sĩ trưởng</button>
                 <button id="tab-staff-coach" onclick="window.renderStaffList('coach')" class="px-4 py-2 font-medium text-slate-400 hover:text-white transition whitespace-nowrap rounded-t-lg">📋 Trợ lý HLV</button>
             </div>
-    
             <div class="p-3 text-xs text-yellow-400 bg-yellow-900/20 border-b border-yellow-900/50 text-center italic">
                 Lương Ban huấn luyện sẽ được trừ tự động sau mỗi trận đấu.
             </div>
-    
-            <div class="overflow-y-auto p-4 flex-1 hide-scrollbar bg-slate-900 space-y-4" id="staff-list-container">
-                <!-- Render JS -->
+            <div class="overflow-y-auto p-4 flex-1 hide-scrollbar bg-slate-900 space-y-4" id="staff-list-container"></div>
+        </div>
+    </div>
+
+    <!-- MODAL THAY NGƯỜI TRONG TRẬN -->
+    <div id="match-sub-modal" class="hidden fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-[110] flex flex-col items-center justify-center p-3 sm:p-4">
+        <div class="bg-slate-800 border border-blue-500/40 rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
+            <div class="p-3.5 border-b border-slate-700 bg-slate-900 flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-2">
+                    <span class="text-lg">🔄</span>
+                    <div>
+                        <h3 class="font-bold text-white text-sm sm:text-base">Thay Người Chiến Thuật</h3>
+                        <p class="text-[11px] text-slate-400">Phút <span id="sub-modal-minute" class="text-yellow-400 font-bold">0</span>' • Đã thay: <span id="sub-modal-count" class="text-blue-400 font-bold">0/5</span></p>
+                    </div>
+                </div>
+                <button type="button" onclick="window.closeMatchSubModal()" class="px-3 py-1.5 bg-green-600 hover:bg-green-500 text-white font-bold rounded-lg text-xs shadow transition">
+                    ▶️ Tiếp tục trận
+                </button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-3 space-y-4 hide-scrollbar">
+                <div>
+                    <div class="flex justify-between items-center mb-1.5 px-1">
+                        <span class="text-xs font-bold uppercase tracking-wider text-green-400">1. Chọn cầu thủ rời sân (11 đang đá)</span>
+                        <span class="text-[10px] text-slate-400">Bấm để chọn</span>
+                    </div>
+                    <div id="sub-active-list" class="space-y-1.5"></div>
+                </div>
+
+                <div class="border-t border-slate-700 pt-3">
+                    <div class="flex justify-between items-center mb-1.5 px-1">
+                        <span class="text-xs font-bold uppercase tracking-wider text-blue-400">2. Chọn cầu thủ vào sân (Dự bị)</span>
+                        <span class="text-[10px] text-slate-400">Khả dụng</span>
+                    </div>
+                    <div id="sub-bench-list" class="space-y-1.5"></div>
+                </div>
+            </div>
+
+            <div id="sub-confirm-bar" class="p-3 border-t border-slate-700 bg-slate-900 shrink-0">
+                <div id="sub-selection-preview" class="text-xs text-center text-slate-400 mb-2">
+                    Chọn 1 cầu thủ trên sân và 1 cầu thủ dự bị để thay người.
+                </div>
+                <button type="button" id="confirm-sub-btn" onclick="window.confirmMatchSubstitution()" disabled class="w-full py-2.5 bg-slate-700 text-slate-400 font-bold rounded-xl text-sm transition cursor-not-allowed">
+                    ✅ Xác nhận thay người
+                </button>
             </div>
         </div>
     </div>
