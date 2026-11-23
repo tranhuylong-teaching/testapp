@@ -31,12 +31,15 @@ export const VN_CLUBS_POOL = [
 export const RICH_CLUBS = ["Hà Nội FC", "CA Hà Nội", "Thép Xanh Nam Định", "Becamex Sài Gòn", "CA TP.HCM", "Nam Á Tiền Giang"];
 
 // ================= DỮ LIỆU TÊN CẦU THỦ VIỆT NAM =================
-export const VN_HOS = ["Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Huỳnh", "Phan", "Vũ", "Võ", "Đặng", "Bùi", "Đỗ", "Hồ", "Ngô", "Dương", "Lý", "Cổ", "Tăng"];
+export const VN_HOS = ["Nguyễn", "Trần", "Lê", "Phạm", "Hoàng", "Huỳnh", "Phan", "Vũ", "Võ", "Đặng", "Bùi", "Đỗ", "Hồ", "Ngô", "Dương", 
+                       "Lý", "Cổ", "Tăng", "Tiêu", "Nguyễn Chánh", "Nguyễn Phúc", "Nguyễn Trần", "Trần Lê"
+                      ];
 export const VN_TENS = [
     "Quang Hải", "Tiến Linh", "Văn Hậu", "Hoàng Đức", "Tuấn Anh", "Công Phượng", "Ngọc Hải", 
     "Văn Lâm", "Tiến Dũng", "Duy Mạnh", "Thành Chung", "Văn Thanh", "Hồng Duy", "Văn Toàn", 
     "Tuấn Hải", "Hùng Dũng", "Thanh Bình", "Việt Anh", "Tấn Tài", "Tuấn Tài", "Văn Khang", 
     "Thái Sơn", "Đình Bắc", "Minh Trọng", "Quốc Việt", "Vĩ Hào", "Thái Quý", "Minh Vương",
+    "Hoàng Bửu", "Huỳnh Đức", "Quốc Trung", "Hữu Thắng", "Công Minh", "Tiến Anh", "Hồng Sơn",
     "Phúc Toàn", "Huy Phương", "Thanh Sang", "Hoàng Minh", "Minh Tài", "Thiên Phú", "Hoàng Lộc", "Hữu Duy", "An Lộc"
 ];
 export const POSITIONS = ['GK', 'DEF', 'MID', 'FWD'];
