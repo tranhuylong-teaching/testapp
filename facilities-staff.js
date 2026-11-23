@@ -1,9 +1,46 @@
 import { db, appId, recalculateOVR, generatePlayerName, POSITIONS } from './firebase-config.js';
 import { showLoading, hideLoading, showToast } from './ui-helpers.js';
 import { doc, setDoc, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-import { gameState, STAFF_TIERS, STADIUM_STATS, updateHeaderDisplay, pushNews } from './state.js';
+import { gameState, STAFF_TIERS, STADIUM_STATS, PLAYER_TRAITS, updateHeaderDisplay, pushNews } from './state.js';
+
+export function updateSquadCountAndFfpUI() {
+    const count = gameState.globalPlayersList.length;
+    const countEl = document.getElementById('squad-count');
+    if (countEl) {
+        countEl.textContent = count;
+        if (count > 25) {
+            countEl.className = 'text-red-400 font-black';
+        } else {
+            countEl.className = '';
+        }
+    }
+
+    const ffpBadge = document.getElementById('ffp-warning-badge');
+    if (ffpBadge) {
+        if (count > 25) {
+            const fine = (count - 25) * 150;
+            ffpBadge.textContent = `FFP -€${fine}k/trận`;
+            ffpBadge.classList.remove('hidden');
+        } else {
+            ffpBadge.classList.add('hidden');
+        }
+    }
+
+    const youthList = gameState.myFacilities.youthIntake || [];
+    const squadYouthBtn = document.getElementById('squad-youth-intake-btn');
+    const squadYouthCount = document.getElementById('squad-youth-count');
+    if (squadYouthBtn && squadYouthCount) {
+        if (youthList.length > 0) {
+            squadYouthCount.textContent = youthList.length;
+            squadYouthBtn.classList.remove('hidden');
+        } else {
+            squadYouthBtn.classList.add('hidden');
+        }
+    }
+}
 
 export function renderFacilities() {
+    updateSquadCountAndFfpUI();
     const container = document.getElementById('facilities-container');
     if (!container) return;
     container.innerHTML = '';
@@ -55,7 +92,7 @@ export function renderFacilities() {
     const facs = [
         { id: 'medical', name: '🏥 Y tế', desc: `Chữa chấn thương & hồi 100% thể lực.`, level: gameState.myFacilities.medical, slotsHtml: medSlotsHtml },
         { id: 'training', name: '🏋️ Huấn luyện', desc: `Tăng +1 chỉ số ngẫu nhiên sau mỗi trận.`, level: gameState.myFacilities.training, slotsHtml: trainSlotsHtml },
-        { id: 'scouting', name: '🕵️ Tuyển trạch', desc: `Tìm tài năng trẻ (hoặc Sách tập luyện).`, level: gameState.myFacilities.scouting, slotsHtml: '' },
+        { id: 'scouting', name: '🕵️ Tuyển trạch', desc: `Tìm tài năng trẻ & tổ chức Youth Intake cuối mùa.`, level: gameState.myFacilities.scouting, slotsHtml: '' },
         { id: 'finance', name: '🏦 Tài chính', desc: `Tăng ${gameState.myFacilities.finance * 5}% tổng doanh thu.`, level: gameState.myFacilities.finance, slotsHtml: '' }
     ];
 
@@ -75,14 +112,353 @@ export function renderFacilities() {
         }
 
         if (f.id === 'scouting') {
+            let youthBannerHtml = '';
+            const pendingYouth = gameState.myFacilities.youthIntake || [];
+            if (pendingYouth.length > 0) {
+                youthBannerHtml = `
+                    <div class="bg-amber-950/70 border border-amber-400/70 p-2.5 rounded-xl text-center mb-2.5 shadow-lg">
+                        <div class="text-amber-300 font-black text-xs uppercase">🎓 Ngày Hội Đón Lứa Trẻ</div>
+                        <div class="text-white text-[11px] mt-0.5">Có <span class="text-yellow-400 font-bold">${pendingYouth.length} học viên</span> đang chờ ký hợp đồng!</div>
+                        <button type="button" onclick="window.openYouthIntakeModal()" class="mt-1.5 w-full py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 text-slate-950 font-black text-xs rounded-lg shadow transition">
+                            Mở Danh Sách Học Viên
+                        </button>
+                    </div>
+                `;
+            }
+
             if (gameState.myFacilities.scoutedPlayer) {
-                actionHtml = `<div class="bg-green-900/50 border border-green-500 p-2 rounded-lg text-center mb-2"><div class="text-green-400 font-bold text-xs">Phát hiện Tài năng!</div><div class="text-white text-xs">${gameState.myFacilities.scoutedPlayer.name} (OVR ${gameState.myFacilities.scoutedPlayer.ovr})</div><button onclick="window.claimScoutedPlayer()" class="mt-1 w-full py-1 bg-green-600 hover:bg-green-500 text-white font-bold text-xs rounded">Ký Hợp Đồng</button></div>` + actionHtml;
+                actionHtml = youthBannerHtml + `<div class="bg-green-900/50 border border-green-500 p-2 rounded-lg text-center mb-2"><div class="text-green-400 font-bold text-xs">Phát hiện Tài năng!</div><div class="text-white text-xs">${gameState.myFacilities.scoutedPlayer.name} (OVR ${gameState.myFacilities.scoutedPlayer.ovr})</div><button onclick="window.claimScoutedPlayer()" class="mt-1 w-full py-1 bg-green-600 hover:bg-green-500 text-white font-bold text-xs rounded">Ký Hợp Đồng</button></div>` + actionHtml;
             } else {
-                actionHtml = `<div class="text-[10px] md:text-xs text-slate-400 text-center mb-3 border-t border-slate-700 pt-3">Báo cáo sau: <span class="font-bold text-yellow-400">${gameState.myFacilities.scoutingCooldown}</span> trận</div>` + actionHtml;
+                actionHtml = youthBannerHtml + `<div class="text-[10px] md:text-xs text-slate-400 text-center mb-3 border-t border-slate-700 pt-3">Báo cáo sau: <span class="font-bold text-yellow-400">${gameState.myFacilities.scoutingCooldown}</span> trận</div>` + actionHtml;
             }
         }
         container.innerHTML += `<div class="bg-slate-800 border border-slate-700 rounded-xl p-4 shadow-lg flex flex-col justify-between hover:border-blue-500/50 transition-colors"><div class="mb-4"><div class="flex justify-between items-center mb-2"><h3 class="text-lg font-bold text-white">${f.name}</h3><span class="bg-blue-900 text-blue-300 text-[10px] font-bold px-2 py-1 rounded">Lv. ${f.level}</span></div><p class="text-slate-400 text-xs md:text-sm">${f.desc}</p>${f.slotsHtml}</div><div>${actionHtml}</div></div>`;
     });
+}
+
+// ================= HỆ THỐNG NGÀY HỘI ĐÓN LỨA TRẺ (YOUTH INTAKE DAY) =================
+
+function generateYouthCandidateStats(pos, targetOvr) {
+    const base = targetOvr - 3;
+    function rndStat(bonus) {
+        const val = base + bonus + Math.floor(Math.random() * 7) - 2;
+        return Math.max(30, Math.min(94, val));
+    }
+
+    let stats = {
+        PAC: rndStat(0),
+        SHO: rndStat(0),
+        PAS: rndStat(0),
+        DRI: rndStat(0),
+        DEF: rndStat(0),
+        PHY: rndStat(0)
+    };
+
+    if (pos === 'FWD') {
+        stats.SHO = rndStat(6);
+        stats.PAC = rndStat(4);
+        stats.DRI = rndStat(3);
+    } else if (pos === 'MID') {
+        stats.PAS = rndStat(6);
+        stats.DRI = rndStat(4);
+        stats.PAC = rndStat(2);
+    } else if (pos === 'DEF') {
+        stats.DEF = rndStat(6);
+        stats.PHY = rndStat(4);
+    } else if (pos === 'GK') {
+        stats.DEF = rndStat(7);
+        stats.PHY = rndStat(5);
+    }
+
+    return stats;
+}
+
+function pickYouthTrait(pos, isWonderkid) {
+    if (!isWonderkid || !Array.isArray(PLAYER_TRAITS) || PLAYER_TRAITS.length === 0) {
+        return null;
+    }
+
+    let preferredIds = [];
+    if (pos === 'GK') preferredIds = ['spider', 'wall'];
+    else if (pos === 'DEF') preferredIds = ['wall', 'playmaker'];
+    else if (pos === 'MID') preferredIds = ['playmaker', 'speedster', 'sniper'];
+    else if (pos === 'FWD') preferredIds = ['sniper', 'speedster', 'fox'];
+
+    const matchingTraits = PLAYER_TRAITS.filter(function(t) {
+        return preferredIds.indexOf(t.id) !== -1;
+    });
+
+    const pool = matchingTraits.length > 0 ? matchingTraits : PLAYER_TRAITS;
+    return pool[Math.floor(Math.random() * pool.length)];
+}
+
+export async function triggerYouthIntakeDay() {
+    const scoutLvl = gameState.myFacilities.scouting || 1;
+    const candidateCount = scoutLvl >= 3 ? 3 : 2;
+    const wonderkidRates = { 1: 0.15, 2: 0.25, 3: 0.35, 4: 0.45, 5: 0.55 };
+    const wkRate = wonderkidRates[scoutLvl] || 0.2;
+
+    let intakeList = [];
+    for (let i = 0; i < candidateCount; i++) {
+        const isWonderkid = (scoutLvl >= 5 && i === 0) ? true : (Math.random() < wkRate);
+        const age = Math.random() < 0.55 ? 16 : 17;
+        const pos = POSITIONS[Math.floor(Math.random() * POSITIONS.length)];
+        const name = generatePlayerName(isWonderkid);
+
+        const targetOvr = isWonderkid
+            ? (68 + (scoutLvl * 2) + Math.floor(Math.random() * 6))
+            : (52 + (scoutLvl * 2) + Math.floor(Math.random() * 8));
+
+        const stats = generateYouthCandidateStats(pos, targetOvr);
+        const ovr = recalculateOVR(pos, stats);
+        const trait = pickYouthTrait(pos, isWonderkid);
+        const signFee = isWonderkid ? 150000 : 50000;
+        const value = ovr * (isWonderkid ? 120000 : 75000);
+
+        intakeList.push({
+            tempId: `youth_${Date.now()}_${i}_${Math.floor(Math.random() * 1000)}`,
+            name: name,
+            pos: pos,
+            age: age,
+            ovr: ovr,
+            stats: stats,
+            bonusStats: { PAC: 0, SHO: 0, PAS: 0, DRI: 0, DEF: 0, PHY: 0 },
+            stamina: 100,
+            injury: 0,
+            value: value,
+            isListed: false,
+            itemsUsed: 0,
+            trait: trait,
+            isWonderkid: isWonderkid,
+            signFee: signFee
+        });
+    }
+
+    intakeList.sort(function(a, b) { return b.ovr - a.ovr; });
+    gameState.myFacilities.youthIntake = intakeList;
+
+    await setDoc(doc(db, 'artifacts', appId, 'users', gameState.currentUserId, 'profile', 'info'), {
+        facilities: gameState.myFacilities
+    }, { merge: true });
+
+    const wkCount = intakeList.filter(function(c) { return c.isWonderkid; }).length;
+    const summaryNames = intakeList.map(function(c) { return `${c.name} (${c.pos}, OVR ${c.ovr})`; }).join(', ');
+    pushNews(
+        '🎓 Ngày Hội Đón Lứa Trẻ',
+        `Học viện vừa trình làng ${intakeList.length} tài năng trẻ (${wkCount} Wonderkid): ${summaryNames}. Hãy kiểm tra và ký hợp đồng trước khi các CLB khác dòm ngó!`,
+        true
+    );
+
+    updateSquadCountAndFfpUI();
+    renderFacilities();
+    openYouthIntakeModal();
+}
+
+export function renderYouthIntakeModal() {
+    const list = gameState.myFacilities.youthIntake || [];
+    const scoutLvl = gameState.myFacilities.scouting || 1;
+    const currentSquadSize = gameState.globalPlayersList.length;
+
+    const lvlEl = document.getElementById('youth-modal-scout-lvl');
+    const countEl = document.getElementById('youth-modal-squad-count');
+    const ffpBanner = document.getElementById('youth-ffp-banner');
+    const container = document.getElementById('youth-intake-list');
+
+    if (lvlEl) lvlEl.textContent = `Lv.${scoutLvl}`;
+    if (countEl) {
+        countEl.textContent = `${currentSquadSize}/25`;
+        countEl.className = currentSquadSize > 25 ? 'font-black text-red-400' : (currentSquadSize === 25 ? 'font-bold text-amber-400' : 'font-bold text-green-400');
+    }
+
+    if (ffpBanner) {
+        if (currentSquadSize >= 25) ffpBanner.classList.remove('hidden');
+        else ffpBanner.classList.add('hidden');
+    }
+
+    if (!container) return;
+    container.innerHTML = '';
+
+    if (list.length === 0) {
+        container.innerHTML = '<div class="md:col-span-3 text-center text-slate-400 italic py-8">Tất cả học viên khóa này đã được xử lý xong!</div>';
+        return;
+    }
+
+    const posColors = { GK: 'bg-yellow-600', DEF: 'bg-blue-600', MID: 'bg-green-600', FWD: 'bg-red-600' };
+
+    list.forEach(function(c) {
+        const cardBorder = c.isWonderkid
+            ? 'border-amber-400 bg-gradient-to-b from-amber-950/60 via-slate-800 to-slate-900 shadow-[0_0_20px_rgba(245,158,11,0.2)]'
+            : 'border-slate-700 bg-slate-800/90';
+        const badgeHtml = c.isWonderkid
+            ? '<span class="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500 text-slate-950">🌟 Wonderkid</span>'
+            : '<span class="text-[10px] font-bold uppercase px-2 py-0.5 rounded-full bg-slate-700 text-slate-300">Triển vọng</span>';
+
+        const traitHtml = c.trait
+            ? `<div class="mt-2 text-[11px] bg-fuchsia-950/60 border border-fuchsia-500/40 text-fuchsia-300 px-2 py-1 rounded-lg flex items-center gap-1.5"><span>${c.trait.icon}</span><span class="font-bold truncate">${c.trait.name}</span></div>`
+            : `<div class="mt-2 text-[11px] bg-slate-900/60 border border-slate-700/60 text-slate-500 px-2 py-1 rounded-lg text-center italic">Chưa có kỹ năng ẩn</div>`;
+
+        const isHardCapReached = currentSquadSize >= 28;
+        const willTriggerFfp = currentSquadSize >= 25;
+
+        let signBtnText = `✍️ Ký (-€${(c.signFee / 1000)}k)`;
+        let signBtnSub = willTriggerFfp ? `<span class="block text-[9px] text-amber-200 font-normal">Vượt trần: -€150k/trận</span>` : '';
+
+        container.innerHTML += `
+            <div class="rounded-2xl border-2 ${cardBorder} p-3.5 flex flex-col justify-between">
+                <div>
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="${posColors[c.pos] || 'bg-slate-600'} text-white text-[10px] font-black px-2 py-0.5 rounded">${c.pos}</span>
+                        ${badgeHtml}
+                    </div>
+
+                    <div class="flex items-baseline justify-between my-1">
+                        <h4 class="font-bold text-white text-sm truncate pr-2">${c.name}</h4>
+                        <span class="text-2xl font-black ${c.isWonderkid ? 'text-amber-400' : 'text-green-400'}">${c.ovr}</span>
+                    </div>
+                    <div class="text-[11px] text-slate-400 mb-2">Tuổi: <span class="text-white font-bold">${c.age}</span> • Định giá: <span class="text-yellow-400">€${(c.value / 1000).toLocaleString()}k</span></div>
+
+                    <div class="grid grid-cols-3 gap-1 bg-slate-950/70 p-2 rounded-xl border border-slate-700/60 text-[10px] text-center">
+                        <div><span class="text-slate-400">PAC</span> <b class="text-white">${c.stats.PAC}</b></div>
+                        <div><span class="text-slate-400">SHO</span> <b class="text-white">${c.stats.SHO}</b></div>
+                        <div><span class="text-slate-400">PAS</span> <b class="text-white">${c.stats.PAS}</b></div>
+                        <div><span class="text-slate-400">DRI</span> <b class="text-white">${c.stats.DRI}</b></div>
+                        <div><span class="text-slate-400">DEF</span> <b class="text-white">${c.stats.DEF}</b></div>
+                        <div><span class="text-slate-400">PHY</span> <b class="text-white">${c.stats.PHY}</b></div>
+                    </div>
+
+                    ${traitHtml}
+                </div>
+
+                <div class="mt-3 pt-2.5 border-t border-slate-700/60 flex flex-col gap-1.5">
+                    <button type="button" onclick="window.signYouthPlayer('${c.tempId}')" ${isHardCapReached ? 'disabled' : ''} class="w-full py-2 px-2 ${isHardCapReached ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : (willTriggerFfp ? 'bg-amber-600 hover:bg-amber-500 text-white' : 'bg-green-600 hover:bg-green-500 text-white')} font-bold rounded-xl text-xs shadow transition">
+                        ${isHardCapReached ? 'Đã chạm trần 28/25' : signBtnText}
+                        ${isHardCapReached ? '' : signBtnSub}
+                    </button>
+                    <button type="button" onclick="window.rejectYouthPlayer('${c.tempId}')" class="w-full py-1.5 px-2 bg-slate-800 hover:bg-red-950/60 border border-slate-700 hover:border-red-500/50 text-slate-300 hover:text-red-300 font-bold rounded-xl text-[11px] transition">
+                        ❌ Thải loại (+€25k)
+                    </button>
+                </div>
+            </div>
+        `;
+    });
+}
+
+export function openYouthIntakeModal() {
+    const modal = document.getElementById('youth-intake-modal');
+    if (!modal) return;
+    renderYouthIntakeModal();
+    modal.classList.remove('hidden');
+}
+
+export function closeYouthIntakeModal() {
+    const modal = document.getElementById('youth-intake-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+}
+
+export async function signYouthPlayer(tempId) {
+    const list = gameState.myFacilities.youthIntake || [];
+    const candidate = list.find(function(c) { return c.tempId === tempId; });
+    if (!candidate) return;
+
+    if (gameState.globalPlayersList.length >= 28) {
+        showToast("Đã chạm trần tối đa 28/25 cầu thủ! Hãy thanh lý bớt cầu thủ trước.", "error");
+        return;
+    }
+    if (gameState.myBudget < candidate.signFee) {
+        showToast(`Không đủ €${candidate.signFee.toLocaleString()} phí lót tay đào tạo!`, "error");
+        return;
+    }
+
+    showLoading("ĐANG KÝ HỢP ĐỒNG TRẺ...");
+    try {
+        gameState.myBudget -= candidate.signFee;
+        updateHeaderDisplay();
+
+        let playerData = {
+            name: candidate.name,
+            pos: candidate.pos,
+            age: candidate.age,
+            ovr: candidate.ovr,
+            stats: candidate.stats,
+            bonusStats: { PAC: 0, SHO: 0, PAS: 0, DRI: 0, DEF: 0, PHY: 0 },
+            stamina: 100,
+            injury: 0,
+            value: candidate.value,
+            isListed: false,
+            itemsUsed: 0
+        };
+        if (candidate.trait) {
+            playerData.trait = candidate.trait;
+        }
+
+        const newPlayerRef = doc(collection(db, 'artifacts', appId, 'users', gameState.currentUserId, 'players'));
+        await setDoc(newPlayerRef, playerData);
+
+        playerData.id = newPlayerRef.id;
+        gameState.globalPlayersList.push(playerData);
+        gameState.globalPlayersMap[playerData.id] = playerData;
+
+        gameState.myFacilities.youthIntake = list.filter(function(c) { return c.tempId !== tempId; });
+
+        await setDoc(doc(db, 'artifacts', appId, 'users', gameState.currentUserId, 'profile', 'info'), {
+            budget: gameState.myBudget,
+            facilities: gameState.myFacilities
+        }, { merge: true });
+
+        updateSquadCountAndFfpUI();
+        renderFacilities();
+        renderYouthIntakeModal();
+        if (typeof window.renderSquadList === 'function') window.renderSquadList();
+
+        const newCount = gameState.globalPlayersList.length;
+        if (newCount > 25) {
+            const fine = (newCount - 25) * 150000;
+            showToast(`Đã ký ${candidate.name}! Vi phạm FFP (${newCount}/25): Phạt €${fine.toLocaleString()}/trận.`, "warning");
+        } else {
+            showToast(`Đã ký hợp đồng chuyên nghiệp với ${candidate.name} (OVR ${candidate.ovr})!`, "success");
+        }
+
+        if (gameState.myFacilities.youthIntake.length === 0) {
+            setTimeout(function() { closeYouthIntakeModal(); }, 450);
+        }
+    } catch (e) {
+        showToast("Lỗi khi ký hợp đồng cầu thủ trẻ!");
+    } finally {
+        hideLoading();
+    }
+}
+
+export async function rejectYouthPlayer(tempId) {
+    const list = gameState.myFacilities.youthIntake || [];
+    const candidate = list.find(function(c) { return c.tempId === tempId; });
+    if (!candidate) return;
+
+    showLoading("ĐANG XỬ LÝ...");
+    try {
+        gameState.myBudget += 25000;
+        updateHeaderDisplay();
+
+        gameState.myFacilities.youthIntake = list.filter(function(c) { return c.tempId !== tempId; });
+
+        await setDoc(doc(db, 'artifacts', appId, 'users', gameState.currentUserId, 'profile', 'info'), {
+            budget: gameState.myBudget,
+            facilities: gameState.myFacilities
+        }, { merge: true });
+
+        updateSquadCountAndFfpUI();
+        renderFacilities();
+        renderYouthIntakeModal();
+        showToast(`Đã thải loại ${candidate.name} (+€25,000 phí đào tạo).`, "info");
+
+        if (gameState.myFacilities.youthIntake.length === 0) {
+            setTimeout(function() { closeYouthIntakeModal(); }, 450);
+        }
+    } catch (e) {
+        showToast("Lỗi khi xử lý học viên!");
+    } finally {
+        hideLoading();
+    }
 }
 
 export async function upgradeFacility(facId, cost, time) {
@@ -142,7 +518,7 @@ export async function removeFromFacility(playerId, type) {
 }
 
 export async function claimScoutedPlayer() {
-    if (gameState.globalPlayersList.length >= 25) { showToast("Đội hình đã đầy!", "error"); return; }
+    if (gameState.globalPlayersList.length >= 25) { showToast("Đội hình đã đầy (25/25)!", "error"); return; }
     showLoading("ĐANG KÝ HỢP ĐỒNG...");
     try {
         let p = gameState.myFacilities.scoutedPlayer;
@@ -154,6 +530,7 @@ export async function claimScoutedPlayer() {
         gameState.myFacilities.scoutedPlayer = null;
         gameState.myFacilities.scoutingCooldown = 6 - gameState.myFacilities.scouting;
         await setDoc(doc(db, 'artifacts', appId, 'users', gameState.currentUserId, 'profile', 'info'), { facilities: gameState.myFacilities }, { merge: true });
+        updateSquadCountAndFfpUI();
         renderFacilities();
         showToast(`Đã ký ${p.name}!`, "success");
     } catch (e) {
@@ -525,3 +902,9 @@ export async function autoAssignFacilities() {
 
     return autoLogs.join('<br>');
 }
+
+// Gắn trực tiếp các hàm Youth Intake lên window
+window.openYouthIntakeModal = openYouthIntakeModal;
+window.closeYouthIntakeModal = closeYouthIntakeModal;
+window.signYouthPlayer = signYouthPlayer;
+window.rejectYouthPlayer = rejectYouthPlayer;
