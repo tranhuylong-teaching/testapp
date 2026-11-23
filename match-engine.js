@@ -6,6 +6,56 @@ import { processTransferMarket } from './market-store.js';
 import { processFacilitiesAndStamina, autoAssignFacilities } from './facilities-staff.js';
 import { finishPvpMatch } from './pvp.js';
 
+let liveMatchState = {
+    isActive: false,
+    isPaused: false,
+    speedMultiplier: 1,
+    timerId: null,
+    minute: 0,
+    homeScore: 0,
+    awayScore: 0,
+    opponent: null,
+    isFriendly: false,
+    isPvp: false,
+    originalXI: [],
+    activeXI: [],
+    liveStamina: {},
+    entryMinute: {},
+    minutesPlayed: {},
+    subbedOutIds: [],
+    redCardedIds: [],
+    subsUsed: 0,
+    maxSubs: 5,
+    shoutsUsed: 0,
+    maxShouts: 3,
+    activeShout: null,
+    shoutEndMinute: 0,
+    shoutCooldownUntil: 0,
+    selectedOutSlot: null,
+    selectedInId: null
+};
+
+const SHOUT_CONFIG = {
+    all_out: {
+        name: 'Tấn công tổng lực',
+        icon: '🔥',
+        logClass: 'text-red-300 border-red-500 from-red-900/60',
+        desc: 'Dâng cao đội hình tổng lực! Tăng mạnh hỏa lực nhưng để lộ khoảng trống phía sau.'
+    },
+    park_bus: {
+        name: 'Tử thủ bảo toàn',
+        icon: '🛡️',
+        logClass: 'text-sky-300 border-sky-500 from-sky-900/60',
+        desc: 'Dựng xe buýt 2 tầng trước khung thành! Bịt kín mọi kẽ hở và giảm nhịp độ trận đấu.'
+    },
+    encourage: {
+        name: 'Động viên ép sân',
+        icon: '📣',
+        logClass: 'text-emerald-300 border-emerald-500 from-emerald-900/60',
+        desc: 'Tiếp lửa tinh thần từ đường biên! Toàn đội bùng nổ thể lực, xóa bỏ sự mệt mỏi trong 15 phút.'
+    }
+};
+
 export function sortStandings() {
     gameState.leagueState.standings.sort(function(a, b) {
         if (b.points !== a.points) return b.points - a.points;
@@ -155,6 +205,704 @@ export function renderLeagueView() {
     });
 }
 
+function getExpectedSlotPositions() {
+    const layout = gameState.currentFormation.split('-').map(Number);
+    layout.reverse();
+    layout.push(1);
+    const posNames = ['FWD', 'MID', 'DEF', 'GK'];
+    let expectedPositions = [];
+    layout.forEach(function(count, idx) {
+        for (let i = 0; i < count; i++) {
+            expectedPositions.push(posNames[idx]);
+        }
+    });
+    return expectedPositions;
+}
+
+function calcLiveHomePower() {
+    const expectedPositions = getExpectedSlotPositions();
+    const isEncouraged = (liveMatchState.activeShout === 'encourage' && liveMatchState.minute <= liveMatchState.shoutEndMinute);
+
+    let totalOVR = 0;
+    let count = 0;
+
+    liveMatchState.activeXI.forEach(function(id, slotIdx) {
+        if (!id || !gameState.globalPlayersMap[id]) return;
+        if (liveMatchState.redCardedIds.indexOf(id) !== -1) return;
+
+        const p = gameState.globalPlayersMap[id];
+        const stam = liveMatchState.liveStamina[id] !== undefined ? liveMatchState.liveStamina[id] : p.stamina;
+        const fatiguePenalty = (!isEncouraged && stam < 60) ? Math.floor((60 - stam) / 2) : 0;
+        const expectedPos = expectedPositions[slotIdx] || p.pos;
+        const posPenalty = (p.pos !== expectedPos) ? 4 : 0;
+        const effOvr = Math.max(1, p.ovr - fatiguePenalty - posPenalty);
+
+        totalOVR += effOvr;
+        count++;
+    });
+
+    let baseOVR = count > 0 ? Math.round(totalOVR / count) : 0;
+
+    if (gameState.currentFormation === '4-3-3') {
+        baseOVR += Math.round(gameState.teamPower.ATT * 0.15) - Math.round(gameState.teamPower.DEF * 0.05);
+    } else if (gameState.currentFormation === '5-3-2') {
+        baseOVR += Math.round(gameState.teamPower.DEF * 0.15) - Math.round(gameState.teamPower.ATT * 0.05);
+    }
+
+    if (isEncouraged) {
+        baseOVR += 3;
+    }
+
+    for (let r = 0; r < liveMatchState.redCardedIds.length; r++) {
+        baseOVR = Math.floor(baseOVR * 0.9);
+    }
+
+    return Math.max(1, baseOVR);
+}
+
+function calcLiveAwayPower() {
+    if (!liveMatchState.opponent) return 60;
+    let awayOVR = liveMatchState.opponent.ovr;
+    const awayReds = liveMatchState.awayRedCards || 0;
+    for (let r = 0; r < awayReds; r++) {
+        awayOVR = Math.floor(awayOVR * 0.9);
+    }
+    return Math.max(1, awayOVR);
+}
+
+function updateLivePowerUI() {
+    const homeOvrEl = document.getElementById('live-home-ovr');
+    const awayOvrEl = document.getElementById('live-away-ovr');
+    if (homeOvrEl) homeOvrEl.textContent = calcLiveHomePower();
+    if (awayOvrEl) awayOvrEl.textContent = calcLiveAwayPower();
+}
+
+function updateShoutUI() {
+    const remaining = liveMatchState.maxShouts - liveMatchState.shoutsUsed;
+    const remEl = document.getElementById('shouts-remaining');
+    if (remEl) remEl.textContent = `Còn ${remaining}/${liveMatchState.maxShouts} lượt`;
+
+    const statusEl = document.getElementById('live-shout-status');
+    const isActive = (liveMatchState.activeShout && liveMatchState.minute <= liveMatchState.shoutEndMinute);
+    if (statusEl) {
+        if (isActive) {
+            const cfg = SHOUT_CONFIG[liveMatchState.activeShout];
+            const minsLeft = Math.max(1, liveMatchState.shoutEndMinute - liveMatchState.minute);
+            statusEl.textContent = `${cfg.icon} Đang áp dụng: ${cfg.name} (còn ${minsLeft}')`;
+            statusEl.classList.remove('hidden');
+        } else {
+            statusEl.classList.add('hidden');
+        }
+    }
+
+    const onCooldown = (liveMatchState.minute < liveMatchState.shoutCooldownUntil);
+    const outOfShouts = (remaining <= 0);
+    const ids = ['all_out', 'park_bus', 'encourage'];
+
+    ids.forEach(function(id) {
+        const btn = document.getElementById(`shout-btn-${id}`);
+        if (!btn) return;
+        if (onCooldown || outOfShouts || liveMatchState.minute >= 90) {
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+        } else {
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+        }
+    });
+}
+
+function addMatchLog(htmlString) {
+    const logContainer = document.getElementById('match-logs-container');
+    if (!logContainer) return;
+    logContainer.insertAdjacentHTML('beforeend', htmlString);
+    logContainer.scrollTop = logContainer.scrollHeight;
+}
+
+function triggerGoalEffect(isHome) {
+    const el = document.getElementById(isHome ? 'score-home' : 'score-away');
+    const liveMatchContainer = document.getElementById('match-live');
+    if (el) {
+        el.classList.remove('animate-pop');
+        void el.offsetWidth;
+        el.classList.add('animate-pop');
+    }
+    if (liveMatchContainer) {
+        liveMatchContainer.classList.remove('animate-shake');
+        void liveMatchContainer.offsetWidth;
+        liveMatchContainer.classList.add('animate-shake');
+    }
+}
+
+function pauseMatchLoop() {
+    if (liveMatchState.timerId) {
+        clearInterval(liveMatchState.timerId);
+        liveMatchState.timerId = null;
+    }
+    liveMatchState.isPaused = true;
+    const badge = document.getElementById('match-clock-badge');
+    if (badge) {
+        badge.innerHTML = `⏸️ TẠM DỪNG (<span id="match-minute">${liveMatchState.minute}</span>')`;
+        badge.className = "mt-1 text-[10px] font-bold text-blue-400 animate-pulse";
+    }
+}
+
+function startMatchLoop() {
+    if (liveMatchState.timerId) {
+        clearInterval(liveMatchState.timerId);
+        liveMatchState.timerId = null;
+    }
+    liveMatchState.isPaused = false;
+    const badge = document.getElementById('match-clock-badge');
+    if (badge) {
+        badge.innerHTML = `Phút <span id="match-minute">${liveMatchState.minute}</span>'`;
+        badge.className = "mt-1 text-[10px] font-bold text-yellow-400";
+    }
+    const intervalMs = liveMatchState.speedMultiplier === 2 ? 220 : 450;
+    liveMatchState.timerId = setInterval(runMatchTick, intervalMs);
+}
+
+export function toggleMatchSpeed() {
+    liveMatchState.speedMultiplier = liveMatchState.speedMultiplier === 1 ? 2 : 1;
+    const speedBtn = document.getElementById('live-speed-btn');
+    if (speedBtn) {
+        speedBtn.textContent = liveMatchState.speedMultiplier === 2 ? '⏩ x2' : '⏩ x1';
+        if (liveMatchState.speedMultiplier === 2) {
+            speedBtn.classList.add('bg-amber-600', 'text-white', 'border-amber-400');
+            speedBtn.classList.remove('bg-slate-700', 'text-slate-200', 'border-slate-600');
+        } else {
+            speedBtn.classList.remove('bg-amber-600', 'text-white', 'border-amber-400');
+            speedBtn.classList.add('bg-slate-700', 'text-slate-200', 'border-slate-600');
+        }
+    }
+    if (liveMatchState.isActive && !liveMatchState.isPaused && liveMatchState.minute < 90) {
+        startMatchLoop();
+    }
+}
+
+export function triggerTouchlineShout(type) {
+    if (!liveMatchState.isActive || liveMatchState.minute >= 90) return;
+    if (liveMatchState.shoutsUsed >= liveMatchState.maxShouts) {
+        showToast("Đã dùng hết 3 lượt chỉ đạo trong trận!", "warning");
+        return;
+    }
+    if (liveMatchState.minute < liveMatchState.shoutCooldownUntil) {
+        showToast(`Vui lòng đợi đến phút ${liveMatchState.shoutCooldownUntil}' để chỉ đạo tiếp!`, "warning");
+        return;
+    }
+
+    const cfg = SHOUT_CONFIG[type];
+    if (!cfg) return;
+
+    liveMatchState.activeShout = type;
+    liveMatchState.shoutEndMinute = Math.min(90, liveMatchState.minute + 15);
+    liveMatchState.shoutCooldownUntil = Math.min(90, liveMatchState.minute + 15);
+    liveMatchState.shoutsUsed++;
+
+    updateLivePowerUI();
+    updateShoutUI();
+    playHaptic('medium');
+
+    addMatchLog(`<div class="font-bold bg-gradient-to-r ${cfg.logClass} to-transparent p-2.5 rounded-lg border-l-4 shadow animate-fade-in-up">
+        ${cfg.icon} Phút ${liveMatchState.minute}': CHỈ ĐẠO ĐƯỜNG BIÊN — ${cfg.name.toUpperCase()}!<br>
+        <span class="text-white text-xs font-normal">${cfg.desc}</span>
+    </div>`);
+}
+
+function renderMatchSubModal() {
+    document.getElementById('sub-modal-minute').textContent = liveMatchState.minute;
+    document.getElementById('sub-modal-count').textContent = `${liveMatchState.subsUsed}/${liveMatchState.maxSubs}`;
+
+    const activeContainer = document.getElementById('sub-active-list');
+    const benchContainer = document.getElementById('sub-bench-list');
+    activeContainer.innerHTML = '';
+    benchContainer.innerHTML = '';
+
+    const expectedPositions = getExpectedSlotPositions();
+    const posColors = { GK: 'bg-yellow-600', DEF: 'bg-blue-600', MID: 'bg-green-600', FWD: 'bg-red-600' };
+
+    liveMatchState.activeXI.forEach(function(id, slotIdx) {
+        const p = gameState.globalPlayersMap[id];
+        if (!p) return;
+
+        const isRed = liveMatchState.redCardedIds.indexOf(id) !== -1;
+        const stam = Math.round(liveMatchState.liveStamina[id] !== undefined ? liveMatchState.liveStamina[id] : p.stamina);
+        const expectedPos = expectedPositions[slotIdx] || p.pos;
+        const isOutOfPos = p.pos !== expectedPos;
+        const isSelected = liveMatchState.selectedOutSlot === slotIdx;
+
+        const stamColor = stam >= 70 ? 'text-green-400' : (stam >= 45 ? 'text-yellow-400' : 'text-red-400');
+        const stamBar = stam >= 70 ? 'bg-green-400' : (stam >= 45 ? 'bg-yellow-400' : 'bg-red-500');
+
+        let cardClass = 'flex items-center justify-between p-2.5 rounded-xl border transition ';
+        if (isRed) {
+            cardClass += 'bg-red-950/40 border-red-800/60 opacity-60 cursor-not-allowed';
+        } else if (isSelected) {
+            cardClass += 'bg-red-900/40 border-red-400 shadow-[0_0_12px_rgba(248,113,113,0.3)] cursor-pointer';
+        } else {
+            cardClass += 'bg-slate-900/80 border-slate-700 hover:border-slate-500 cursor-pointer';
+        }
+
+        const clickAttr = isRed ? '' : `onclick="window.selectSubOut(${slotIdx})"`;
+
+        activeContainer.innerHTML += `
+            <div ${clickAttr} class="${cardClass}">
+                <div class="flex items-center gap-2.5 min-w-0">
+                    <span class="${posColors[expectedPos] || 'bg-slate-600'} text-white text-[10px] font-bold px-1.5 py-0.5 rounded w-9 text-center shrink-0">${expectedPos}</span>
+                    <div class="min-w-0">
+                        <div class="text-xs font-bold text-white truncate flex items-center gap-1.5">
+                            <span>${p.name}</span>
+                            ${isOutOfPos ? `<span class="text-[9px] text-amber-400 bg-amber-950/80 px-1 rounded">Sở trường: ${p.pos}</span>` : ''}
+                            ${isRed ? '<span class="text-[9px] text-red-400 font-black">🟥 Thẻ đỏ</span>' : ''}
+                        </div>
+                        <div class="flex items-center gap-2 mt-1">
+                            <span class="text-[10px] font-bold ${stamColor}">⚡ ${stam}%</span>
+                            <div class="w-20 bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                                <div class="${stamBar} h-full" style="width: ${stam}%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 shrink-0">
+                    <span class="text-sm font-black text-white">${p.ovr}</span>
+                    ${isSelected ? '<span class="text-[10px] bg-red-600 text-white font-bold px-1.5 py-0.5 rounded">RA SÂN</span>' : ''}
+                </div>
+            </div>
+        `;
+    });
+
+    const benchPlayers = gameState.globalPlayersList.filter(function(p) {
+        if (liveMatchState.activeXI.indexOf(p.id) !== -1) return false;
+        if (liveMatchState.subbedOutIds.indexOf(p.id) !== -1) return false;
+        if (p.injury > 0) return false;
+        return true;
+    });
+
+    const order = { GK: 1, DEF: 2, MID: 3, FWD: 4 };
+    benchPlayers.sort(function(a, b) {
+        if (order[a.pos] !== order[b.pos]) return order[a.pos] - order[b.pos];
+        return b.ovr - a.ovr;
+    });
+
+    if (benchPlayers.length === 0) {
+        benchContainer.innerHTML = '<div class="text-xs text-slate-400 italic text-center py-4 bg-slate-900/50 rounded-xl border border-dashed border-slate-700">Không còn cầu thủ dự bị khả dụng.</div>';
+    } else {
+        benchPlayers.forEach(function(p) {
+            const isSelected = liveMatchState.selectedInId === p.id;
+            const stam = Math.round(liveMatchState.liveStamina[p.id] !== undefined ? liveMatchState.liveStamina[p.id] : p.stamina);
+            const stamColor = stam >= 70 ? 'text-green-400' : (stam >= 45 ? 'text-yellow-400' : 'text-red-400');
+
+            let cardClass = 'flex items-center justify-between p-2.5 rounded-xl border cursor-pointer transition ';
+            if (isSelected) {
+                cardClass += 'bg-green-900/40 border-green-400 shadow-[0_0_12px_rgba(74,222,128,0.3)]';
+            } else {
+                cardClass += 'bg-slate-900/80 border-slate-700 hover:border-slate-500';
+            }
+
+            benchContainer.innerHTML += `
+                <div onclick="window.selectSubIn('${p.id}')" class="${cardClass}">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                        <span class="${posColors[p.pos] || 'bg-slate-600'} text-white text-[10px] font-bold px-1.5 py-0.5 rounded w-9 text-center shrink-0">${p.pos}</span>
+                        <div class="min-w-0">
+                            <div class="text-xs font-bold text-white truncate flex items-center gap-1">
+                                <span>${p.name}</span>
+                                ${p.trait ? `<span title="${p.trait.name}">${p.trait.icon}</span>` : ''}
+                            </div>
+                            <div class="text-[10px] font-bold ${stamColor} mt-0.5">⚡ Thể lực: ${stam}%</div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        <span class="text-sm font-black text-green-400">${p.ovr}</span>
+                        ${isSelected ? '<span class="text-[10px] bg-green-600 text-white font-bold px-1.5 py-0.5 rounded">VÀO SÂN</span>' : ''}
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    const previewEl = document.getElementById('sub-selection-preview');
+    const confirmBtn = document.getElementById('confirm-sub-btn');
+
+    if (liveMatchState.subsUsed >= liveMatchState.maxSubs) {
+        previewEl.innerHTML = '<span class="text-amber-400 font-bold">Bạn đã dùng hết 5 quyền thay người trong trận đấu này!</span>';
+        confirmBtn.disabled = true;
+        confirmBtn.className = 'w-full py-2.5 bg-slate-700 text-slate-400 font-bold rounded-xl text-sm transition cursor-not-allowed';
+    } else if (liveMatchState.selectedOutSlot !== null && liveMatchState.selectedInId !== null) {
+        const outId = liveMatchState.activeXI[liveMatchState.selectedOutSlot];
+        const pOut = gameState.globalPlayersMap[outId];
+        const pIn = gameState.globalPlayersMap[liveMatchState.selectedInId];
+        const outStam = Math.round(liveMatchState.liveStamina[outId] || pOut.stamina);
+        const inStam = Math.round(liveMatchState.liveStamina[pIn.id] || pIn.stamina);
+
+        previewEl.innerHTML = `<span class="text-red-400 font-bold">🔻 ${pOut.name} (⚡${outStam}%)</span> <span class="text-slate-400 mx-1">➔</span> <span class="text-green-400 font-bold">🔺 ${pIn.name} (⚡${inStam}%)</span>`;
+        confirmBtn.disabled = false;
+        confirmBtn.className = 'w-full py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 text-white font-bold rounded-xl text-sm shadow-lg transition cursor-pointer';
+    } else {
+        previewEl.textContent = 'Chọn 1 cầu thủ trên sân và 1 cầu thủ dự bị để thay người.';
+        confirmBtn.disabled = true;
+        confirmBtn.className = 'w-full py-2.5 bg-slate-700 text-slate-400 font-bold rounded-xl text-sm transition cursor-not-allowed';
+    }
+}
+
+export function openMatchSubModal() {
+    if (!liveMatchState.isActive || liveMatchState.minute >= 90) return;
+    pauseMatchLoop();
+    liveMatchState.selectedOutSlot = null;
+    liveMatchState.selectedInId = null;
+    renderMatchSubModal();
+    document.getElementById('match-sub-modal').classList.remove('hidden');
+}
+
+export function closeMatchSubModal() {
+    document.getElementById('match-sub-modal').classList.add('hidden');
+    if (liveMatchState.isActive && liveMatchState.minute < 90) {
+        startMatchLoop();
+    }
+}
+
+export function selectSubOut(slotIdx) {
+    const id = liveMatchState.activeXI[slotIdx];
+    if (!id || liveMatchState.redCardedIds.indexOf(id) !== -1) return;
+    liveMatchState.selectedOutSlot = (liveMatchState.selectedOutSlot === slotIdx) ? null : slotIdx;
+    renderMatchSubModal();
+}
+
+export function selectSubIn(playerId) {
+    liveMatchState.selectedInId = (liveMatchState.selectedInId === playerId) ? null : playerId;
+    renderMatchSubModal();
+}
+
+export function confirmMatchSubstitution() {
+    if (liveMatchState.subsUsed >= liveMatchState.maxSubs) return;
+    if (liveMatchState.selectedOutSlot === null || liveMatchState.selectedInId === null) return;
+
+    const outId = liveMatchState.activeXI[liveMatchState.selectedOutSlot];
+    const inId = liveMatchState.selectedInId;
+    const pOut = gameState.globalPlayersMap[outId];
+    const pIn = gameState.globalPlayersMap[inId];
+    if (!pOut || !pIn) return;
+
+    const startMin = liveMatchState.entryMinute[outId] || 0;
+    liveMatchState.minutesPlayed[outId] = (liveMatchState.minutesPlayed[outId] || 0) + Math.max(0, liveMatchState.minute - startMin);
+    liveMatchState.entryMinute[inId] = liveMatchState.minute;
+    liveMatchState.subbedOutIds.push(outId);
+
+    liveMatchState.activeXI[liveMatchState.selectedOutSlot] = inId;
+    liveMatchState.subsUsed++;
+    liveMatchState.selectedOutSlot = null;
+    liveMatchState.selectedInId = null;
+
+    const subCountEl = document.getElementById('live-subs-count');
+    if (subCountEl) subCountEl.textContent = `${liveMatchState.subsUsed}/${liveMatchState.maxSubs}`;
+
+    updateLivePowerUI();
+    playHaptic('medium');
+
+    addMatchLog(`<div class="text-blue-300 font-bold bg-blue-950/60 p-2.5 rounded-lg border-l-4 border-blue-400 animate-fade-in-up">
+        🔄 Phút ${liveMatchState.minute}': THAY NGƯỜI (${liveMatchState.subsUsed}/${liveMatchState.maxSubs}) — <span class="text-green-400">${pIn.name}</span> (${pIn.pos}, OVR ${pIn.ovr}) vào sân thay cho <span class="text-slate-300">${pOut.name}</span>.
+    </div>`);
+
+    showToast(`Đã thay ${pIn.name} vào sân!`, "success");
+    renderMatchSubModal();
+}
+
+function runMatchTick() {
+    if (!liveMatchState.isActive || liveMatchState.isPaused) return;
+
+    const prevMinute = liveMatchState.minute;
+    const step = Math.floor(Math.random() * 4) + 2;
+    liveMatchState.minute += step;
+    if (liveMatchState.minute >= 90) liveMatchState.minute = 90;
+    const actualStep = liveMatchState.minute - prevMinute;
+
+    const minEl = document.getElementById('match-minute');
+    if (minEl) minEl.textContent = liveMatchState.minute;
+
+    // Kiểm tra hết hiệu lực chỉ đạo đường biên
+    if (liveMatchState.activeShout && liveMatchState.minute > liveMatchState.shoutEndMinute) {
+        const endedCfg = SHOUT_CONFIG[liveMatchState.activeShout];
+        liveMatchState.activeShout = null;
+        addMatchLog(`<div class="text-slate-400 italic px-2 text-xs animate-fade-in-up">⏱ Phút ${liveMatchState.minute}': Hiệu ứng chỉ đạo "${endedCfg.name}" đã kết thúc, đội hình trở về nhịp độ chuẩn.</div>`);
+    }
+
+    // Tiêu hao thể lực theo thời gian thực trên sân
+    let drainRate = 0.22;
+    if (liveMatchState.activeShout === 'all_out') drainRate = 0.30;
+    else if (liveMatchState.activeShout === 'park_bus') drainRate = 0.16;
+
+    liveMatchState.activeXI.forEach(function(id) {
+        if (id && liveMatchState.redCardedIds.indexOf(id) === -1 && liveMatchState.liveStamina[id] !== undefined) {
+            liveMatchState.liveStamina[id] = Math.max(0, liveMatchState.liveStamina[id] - (actualStep * drainRate));
+        }
+    });
+
+    const currentHomeOVR = calcLiveHomePower();
+    const currentAwayOVR = calcLiveAwayPower();
+    updateLivePowerUI();
+    updateShoutUI();
+
+    const rng = Math.random() * 100;
+    let homeGoalChance = (currentHomeOVR / (currentHomeOVR + currentAwayOVR)) * 14;
+    let awayGoalChance = (currentAwayOVR / (currentAwayOVR + currentHomeOVR)) * 14;
+
+    if (gameState.currentFormation === '5-3-2' && currentAwayOVR > currentHomeOVR && Math.random() < 0.2) {
+        homeGoalChance += 5;
+    }
+
+    if (liveMatchState.activeShout === 'all_out') {
+        homeGoalChance *= 1.25;
+        awayGoalChance *= 1.20;
+    } else if (liveMatchState.activeShout === 'park_bus') {
+        homeGoalChance *= 0.70;
+        awayGoalChance *= 0.72;
+    } else if (liveMatchState.activeShout === 'encourage') {
+        homeGoalChance *= 1.12;
+    }
+
+    let myActiveTraits = [];
+    let myAttackers = [];
+    let activeEligibleIds = [];
+
+    liveMatchState.activeXI.forEach(function(id) {
+        if (id && gameState.globalPlayersMap[id] && liveMatchState.redCardedIds.indexOf(id) === -1) {
+            const p = gameState.globalPlayersMap[id];
+            activeEligibleIds.push(id);
+            if (p.trait) myActiveTraits.push({ name: p.name, trait: p.trait });
+            if (p.pos === 'FWD' || p.pos === 'MID') myAttackers.push(p);
+        }
+    });
+
+    let triggeredTrait = null;
+    if (myActiveTraits.length > 0 && Math.random() < 0.15) {
+        triggeredTrait = myActiveTraits[Math.floor(Math.random() * myActiveTraits.length)];
+    }
+
+    if (rng < homeGoalChance || (triggeredTrait && ['speedster', 'sniper', 'playmaker', 'fox'].indexOf(triggeredTrait.trait.id) !== -1)) {
+        liveMatchState.homeScore++;
+        document.getElementById('score-home').textContent = liveMatchState.homeScore;
+        triggerGoalEffect(true);
+
+        if (triggeredTrait) {
+            addMatchLog(`<div class="text-fuchsia-300 font-bold bg-gradient-to-r from-fuchsia-900/60 to-transparent p-3 rounded-lg border-l-4 border-fuchsia-500 shadow-[0_0_15px_rgba(217,70,239,0.3)] animate-fade-in-up">
+                ${triggeredTrait.trait.icon} KỸ NĂNG: ${triggeredTrait.trait.name.toUpperCase()}!<br>
+                <span class="text-white text-xs">${triggeredTrait.name} ${triggeredTrait.trait.desc} và ghi bàn ngoạn mục!</span>
+            </div>`);
+            playHaptic('heavy');
+        } else {
+            addMatchLog(`<div class="text-green-300 font-bold bg-gradient-to-r from-green-900/60 to-transparent p-3 rounded-lg border-l-4 border-green-500 shadow-md animate-fade-in-up">⚽ Phút ${liveMatchState.minute}': VÀO!!! Bàn thắng tuyệt đẹp cho ${gameState.myClubName.toUpperCase()}!</div>`);
+        }
+    } else if (rng > 100 - awayGoalChance) {
+        if (triggeredTrait && ['wall', 'spider'].indexOf(triggeredTrait.trait.id) !== -1) {
+            addMatchLog(`<div class="text-cyan-300 font-bold bg-gradient-to-r from-cyan-900/60 to-transparent p-3 rounded-lg border-l-4 border-cyan-500 shadow-md animate-fade-in-up">
+                ${triggeredTrait.trait.icon} KỸ NĂNG: ${triggeredTrait.trait.name.toUpperCase()}!<br>
+                <span class="text-white text-xs">${triggeredTrait.name} cứu thua xuất thần cho ${gameState.myClubName}! Nguy hiểm trôi qua.</span>
+            </div>`);
+        } else {
+            liveMatchState.awayScore++;
+            document.getElementById('score-away').textContent = liveMatchState.awayScore;
+            triggerGoalEffect(false);
+            addMatchLog(`<div class="text-red-300 font-bold bg-gradient-to-r from-red-900/60 to-transparent p-3 rounded-lg border-l-4 border-red-500 shadow-md animate-fade-in-up">⚽ Phút ${liveMatchState.minute}': VÀO! ${liveMatchState.opponent.name.toUpperCase()} chọc thủng lưới!</div>`);
+        }
+    } else if (rng > 30 && rng < 35 && myAttackers.length > 0) {
+        let kicker = myAttackers[Math.floor(Math.random() * myAttackers.length)];
+        let isPenalty = Math.random() > 0.5;
+        let situation = isPenalty ? 'Phạt đền 11m' : 'Sút phạt trực tiếp';
+
+        addMatchLog(`<div class="text-yellow-300 italic px-2 animate-fade-in-up">⚡ Phút ${liveMatchState.minute}': Cơ hội! ${kicker.name} đứng trước chấm ${situation}...</div>`);
+
+        setTimeout(function() {
+            if (!liveMatchState.isActive) return;
+            let shootRNG = Math.random() * 100;
+            let goalProb = (kicker.stats.SHO / (kicker.stats.SHO + currentAwayOVR)) * 100;
+
+            if (shootRNG < goalProb + (isPenalty ? 20 : 0)) {
+                liveMatchState.homeScore++;
+                document.getElementById('score-home').textContent = liveMatchState.homeScore;
+                triggerGoalEffect(true);
+                addMatchLog(`<div class="text-green-300 font-bold bg-gradient-to-r from-green-900/60 to-transparent p-3 rounded-lg border-l-4 border-green-500 shadow-md animate-fade-in-up">🎯 VÀO!!! Cú sút quá hiểm hóc của ${kicker.name}!</div>`);
+            } else {
+                addMatchLog(`<div class="text-slate-400 italic px-2 animate-fade-in-up">❌ Không vào! ${kicker.name} đã sút bóng đi trúng thủ môn đội bạn.</div>`);
+            }
+        }, 700);
+    } else if (rng > 80 && rng < 83) {
+        let isHomeCard = Math.random() > 0.5;
+        if (isHomeCard && liveMatchState.redCardedIds.length < 3 && activeEligibleIds.length > 0) {
+            let victimId = activeEligibleIds[Math.floor(Math.random() * activeEligibleIds.length)];
+            let victim = gameState.globalPlayersMap[victimId];
+            liveMatchState.redCardedIds.push(victimId);
+            updateLivePowerUI();
+            addMatchLog(`<div class="text-red-500 font-black bg-red-950/50 p-2 rounded border border-red-500/50 animate-fade-in-up">🟥 Phút ${liveMatchState.minute}': THẺ ĐỎ trực tiếp cho ${victim ? victim.name : gameState.myClubName}! Đội bạn chỉ còn ${11 - liveMatchState.redCardedIds.length} người!</div>`);
+        } else if (!isHomeCard && (liveMatchState.awayRedCards || 0) < 3) {
+            liveMatchState.awayRedCards = (liveMatchState.awayRedCards || 0) + 1;
+            updateLivePowerUI();
+            addMatchLog(`<div class="text-orange-500 font-black bg-orange-950/50 p-2 rounded border border-orange-500/50 animate-fade-in-up">🟥 Phút ${liveMatchState.minute}': THẺ ĐỎ cho ${liveMatchState.opponent.name}! Đội khách mất người!</div>`);
+        }
+    } else if (rng > 40 && rng < 45) {
+        addMatchLog(`<div class="text-slate-400 italic px-2 animate-fade-in-up">⏱ Phút ${liveMatchState.minute}': Thế trận giằng co ở khu vực giữa sân...</div>`);
+    } else if (rng > 70 && rng < 74) {
+        addMatchLog(`<div class="text-yellow-400 px-2 animate-fade-in-up">Phút ${liveMatchState.minute}': 🧤 Thủ môn cản phá xuất thần! Một pha bóng thót tim!</div>`);
+    }
+
+    if (liveMatchState.minute >= 90) {
+        concludeMatch();
+    }
+}
+
+async function reconcileSubstitutionStamina() {
+    if (liveMatchState.subsUsed === 0) return;
+
+    liveMatchState.activeXI.forEach(function(id) {
+        if (id) {
+            const startMin = liveMatchState.entryMinute[id] || 0;
+            liveMatchState.minutesPlayed[id] = (liveMatchState.minutesPlayed[id] || 0) + Math.max(0, 90 - startMin);
+        }
+    });
+
+    const batch = writeBatch(db);
+    let hasUpdates = false;
+
+    // Hoàn trả một phần thể lực cho cầu thủ rời sân sớm
+    liveMatchState.subbedOutIds.forEach(function(id) {
+        const p = gameState.globalPlayersMap[id];
+        if (!p) return;
+        const played = liveMatchState.minutesPlayed[id] || 0;
+        const refund = Math.round(((90 - played) / 90) * 16);
+        p.stamina = Math.min(100, p.stamina + refund);
+        if (played < 60 && p.injury > 0) {
+            p.injury = 0;
+        }
+        batch.update(doc(db, 'artifacts', appId, 'users', gameState.currentUserId, 'players', p.id), {
+            stamina: p.stamina,
+            injury: p.injury || 0
+        });
+        hasUpdates = true;
+    });
+
+    // Trừ thể lực tương ứng cho cầu thủ dự bị vào sân
+    liveMatchState.activeXI.forEach(function(id) {
+        if (!id || liveMatchState.originalXI.indexOf(id) !== -1) return;
+        const p = gameState.globalPlayersMap[id];
+        if (!p) return;
+        const played = liveMatchState.minutesPlayed[id] || 0;
+        const exertion = Math.round((played / 90) * 20) + 25;
+        p.stamina = Math.max(5, p.stamina - exertion);
+        batch.update(doc(db, 'artifacts', appId, 'users', gameState.currentUserId, 'players', p.id), {
+            stamina: p.stamina
+        });
+        hasUpdates = true;
+    });
+
+    if (hasUpdates) {
+        await batch.commit();
+        if (typeof window.renderSquadList === 'function') window.renderSquadList();
+        if (typeof window.renderPitch === 'function') window.renderPitch();
+    }
+}
+
+function concludeMatch() {
+    if (liveMatchState.timerId) {
+        clearInterval(liveMatchState.timerId);
+        liveMatchState.timerId = null;
+    }
+    liveMatchState.isActive = false;
+    liveMatchState.isPaused = false;
+
+    document.getElementById('match-sub-modal').classList.add('hidden');
+    document.getElementById('live-control-bar').classList.add('hidden');
+    document.getElementById('touchline-shouts-bar').classList.add('hidden');
+    document.getElementById('live-shout-status').classList.add('hidden');
+
+    const badge = document.getElementById('match-clock-badge');
+    if (badge) {
+        badge.innerHTML = 'KẾT THÚC (90\')';
+        badge.className = 'mt-1 text-[10px] font-bold text-green-400';
+    }
+
+    const homeScore = liveMatchState.homeScore;
+    const awayScore = liveMatchState.awayScore;
+    const opponent = liveMatchState.opponent;
+    const isFriendly = liveMatchState.isFriendly;
+    const isPvp = liveMatchState.isPvp;
+
+    addMatchLog('<div class="text-yellow-400 font-black text-center mt-4 mb-2 text-xl uppercase tracking-widest drop-shadow-md animate-fade-in-up">HẾT GIỜ!</div>');
+
+    if (isPvp) {
+        const finishBtn = document.getElementById('finish-match-btn');
+        finishBtn.textContent = "Nhận Điểm Rank & Quay Về PvP";
+        finishBtn.classList.remove('hidden');
+        finishBtn.classList.add('animate-fade-in-up');
+        finishBtn.onclick = function() {
+            finishPvpMatch(homeScore, awayScore, opponent);
+        };
+        return;
+    }
+
+    let matchFee = isFriendly ? 0 : -50000;
+    let perfBonus = (homeScore > awayScore) ? (isFriendly ? 50000 : 300000) : (homeScore === awayScore ? (isFriendly ? 20000 : 100000) : 0);
+    let cleanSheet = (awayScore === 0) ? (isFriendly ? 20000 : 150000) : 0;
+    let bigWin = (homeScore - awayScore >= 3) ? (isFriendly ? 20000 : 200000) : 0;
+    let sponsorMoney = isFriendly ? 100000 : 0;
+
+    if (!gameState.myFacilities.stadium) gameState.myFacilities.stadium = 1;
+    let currentStadium = STADIUM_STATS[gameState.myFacilities.stadium - 1];
+    let ticketRevenue = currentStadium.capacity * currentStadium.ticketPrice;
+    if (isFriendly) ticketRevenue = Math.floor(ticketRevenue * 0.3);
+
+    let staffSalary = 0;
+    if (gameState.myStaff.physio) staffSalary += gameState.myStaff.physio.salary;
+    if (gameState.myStaff.coach) staffSalary += gameState.myStaff.coach.salary;
+
+    let income = perfBonus + cleanSheet + bigWin + sponsorMoney + ticketRevenue;
+    let financeBonus = Math.floor(income * (gameState.myFacilities.finance * 0.05));
+    let totalEarnings = matchFee + income + financeBonus - staffSalary;
+
+    addMatchLog(`<div class="mt-3 mb-2 bg-slate-800 border border-yellow-500/50 p-4 rounded-xl text-xs sm:text-sm shadow-xl animate-fade-in-up">
+        <div class="font-bold text-yellow-400 mb-3 border-b border-slate-700 pb-2 text-center tracking-widest uppercase">📊 Báo cáo Tài chính</div>
+        <div class="space-y-1.5">
+            <div class="flex justify-between text-slate-300"><span>Phí tổ chức:</span><span class="text-red-400 font-medium">${matchFee < 0 ? '- €50,000' : 'Miễn phí'}</span></div>
+            ${ticketRevenue ? `<div class="flex justify-between text-slate-300"><span>Doanh thu Bán vé:</span><span class="text-green-400 font-medium">+ €${ticketRevenue.toLocaleString()}</span></div>` : ''}
+            ${sponsorMoney ? `<div class="flex justify-between text-slate-300"><span>Tài trợ giao hữu:</span><span class="text-green-400 font-medium">+ €${sponsorMoney.toLocaleString()}</span></div>` : ''}
+            ${perfBonus ? `<div class="flex justify-between text-slate-300"><span>Thưởng thành tích:</span><span class="text-green-400 font-medium">+ €${perfBonus.toLocaleString()}</span></div>` : ''}
+            ${cleanSheet ? `<div class="flex justify-between text-slate-300"><span>Sạch lưới:</span><span class="text-green-400 font-medium">+ €${cleanSheet.toLocaleString()}</span></div>` : ''}
+            ${bigWin ? `<div class="flex justify-between text-slate-300"><span>Thắng đậm:</span><span class="text-green-400 font-medium">+ €${bigWin.toLocaleString()}</span></div>` : ''}
+            ${staffSalary > 0 ? `<div class="flex justify-between text-slate-300"><span>Lương BHL:</span><span class="text-red-400 font-medium">- €${staffSalary.toLocaleString()}</span></div>` : ''}
+        </div>
+        <div class="flex justify-between font-bold mt-3 pt-3 border-t border-slate-700 text-sm bg-slate-900/50 p-2 rounded">
+            <span>Tổng nhận:</span>
+            <span class="${totalEarnings > 0 ? 'text-green-400' : 'text-red-400'} text-base">${totalEarnings > 0 ? '+' : ''} €${totalEarnings.toLocaleString()}</span>
+        </div>
+    </div>`);
+
+    const finishBtn = document.getElementById('finish-match-btn');
+    finishBtn.textContent = "Tiếp tục";
+    finishBtn.disabled = false;
+    finishBtn.classList.remove('hidden');
+    finishBtn.classList.add('animate-fade-in-up');
+
+    finishBtn.onclick = async function() {
+        finishBtn.textContent = "Đang xử lý ngầm...";
+        finishBtn.disabled = true;
+        await processTransferMarket();
+        await processFacilitiesAndStamina();
+        await reconcileSubstitutionStamina();
+
+        let staffLog = await autoAssignFacilities();
+        if (staffLog) {
+            addMatchLog(`<div class="mt-3 mb-2 bg-slate-800/80 border border-slate-600 p-4 rounded-xl text-xs sm:text-sm shadow-xl animate-fade-in-up">
+                <div class="font-bold text-white mb-2 border-b border-slate-700 pb-2 flex items-center gap-2">👔 Báo cáo Ban Huấn Luyện</div>
+                <div class="space-y-2">${staffLog}</div>
+            </div>`);
+        }
+
+        finishBtn.textContent = "Lưu thành tích vòng đấu";
+        finishBtn.disabled = false;
+        finishBtn.onclick = function() {
+            if (isFriendly) finishFriendlyMatch(totalEarnings);
+            else finishLeagueRound(homeScore, awayScore, totalEarnings);
+        };
+    };
+}
+
 export function startMatchEngine(opponent, isFriendly, isPvp) {
     if (gameState.startingXI.includes(null) || gameState.teamPower.OVR === 0) {
         showToast("Xếp đủ 11 cầu thủ vào Sân!");
@@ -176,237 +924,78 @@ export function startMatchEngine(opponent, isFriendly, isPvp) {
     const liveMatchContainer = document.getElementById('match-live');
     liveMatchContainer.classList.remove('hidden', 'animate-shake');
     document.getElementById('finish-match-btn').classList.add('hidden');
+    document.getElementById('live-control-bar').classList.remove('hidden');
+    document.getElementById('touchline-shouts-bar').classList.remove('hidden');
+    document.getElementById('live-shout-status').classList.add('hidden');
+    document.getElementById('match-sub-modal').classList.add('hidden');
 
-    let minute = 0;
-    let homeScore = 0;
-    let awayScore = 0;
+    if (liveMatchState.timerId) {
+        clearInterval(liveMatchState.timerId);
+    }
+
+    let initialStamina = {};
+    let initialEntry = {};
+    gameState.globalPlayersList.forEach(function(p) {
+        initialStamina[p.id] = p.stamina;
+    });
+    gameState.startingXI.forEach(function(id) {
+        if (id) initialEntry[id] = 0;
+    });
+
+    liveMatchState = {
+        isActive: true,
+        isPaused: false,
+        speedMultiplier: liveMatchState.speedMultiplier || 1,
+        timerId: null,
+        minute: 0,
+        homeScore: 0,
+        awayScore: 0,
+        opponent: opponent,
+        isFriendly: !!isFriendly,
+        isPvp: !!isPvp,
+        originalXI: gameState.startingXI.slice(),
+        activeXI: gameState.startingXI.slice(),
+        liveStamina: initialStamina,
+        entryMinute: initialEntry,
+        minutesPlayed: {},
+        subbedOutIds: [],
+        redCardedIds: [],
+        awayRedCards: 0,
+        subsUsed: 0,
+        maxSubs: 5,
+        shoutsUsed: 0,
+        maxShouts: 3,
+        activeShout: null,
+        shoutEndMinute: 0,
+        shoutCooldownUntil: 0,
+        selectedOutSlot: null,
+        selectedInId: null
+    };
+
     const logContainer = document.getElementById('match-logs-container');
     const matchLabel = isPvp ? "Đấu Trường PvP" : (isFriendly ? "Giao Hữu" : "");
-
     logContainer.innerHTML = `<div class="text-slate-400 text-center text-xs md:text-sm py-2 animate-fade-in-up">Trọng tài thổi còi bắt đầu trận đấu ${matchLabel}!</div>`;
 
     document.getElementById('live-home-name').textContent = gameState.myClubName;
     document.getElementById('live-away-name').textContent = opponent.name;
+    document.getElementById('score-home').textContent = "0";
+    document.getElementById('score-away').textContent = "0";
+    document.getElementById('live-subs-count').textContent = "0/5";
 
-    const scoreHomeEl = document.getElementById('score-home');
-    const scoreAwayEl = document.getElementById('score-away');
-    scoreHomeEl.textContent = "0";
-    scoreAwayEl.textContent = "0";
-    document.getElementById('match-minute').textContent = "0";
+    updateLivePowerUI();
+    updateShoutUI();
 
-    function addLog(htmlString) {
-        logContainer.insertAdjacentHTML('beforeend', htmlString);
-        logContainer.scrollTop = logContainer.scrollHeight;
-    }
-
-    function triggerGoalEffect(isHome) {
-        const el = isHome ? scoreHomeEl : scoreAwayEl;
-        el.classList.remove('animate-pop');
-        void el.offsetWidth;
-        el.classList.add('animate-pop');
-        liveMatchContainer.classList.remove('animate-shake');
-        void liveMatchContainer.offsetWidth;
-        liveMatchContainer.classList.add('animate-shake');
-    }
-
-    let baseHomeOVR = gameState.teamPower.OVR;
-    let baseAwayOVR = opponent.ovr;
     let homeTacticLog = "";
-
     if (gameState.currentFormation === '4-3-3') {
-        baseHomeOVR += Math.round(gameState.teamPower.ATT * 0.15) - Math.round(gameState.teamPower.DEF * 0.05);
         homeTacticLog = `⚔️ Đội hình 4-3-3: Phủ đầu tấn công! (Tăng sức mạnh Hàng Công)`;
     } else if (gameState.currentFormation === '5-3-2') {
-        baseHomeOVR += Math.round(gameState.teamPower.DEF * 0.15) - Math.round(gameState.teamPower.ATT * 0.05);
         homeTacticLog = `🛡️ Đội hình 5-3-2: Tử thủ & Rình rập! (Tăng sức mạnh Hàng Thủ)`;
     } else {
         homeTacticLog = `⚖️ Đội hình 4-4-2: Thế trận cân bằng.`;
     }
+    addMatchLog(`<div class="text-indigo-300 font-bold bg-indigo-900/40 p-2 rounded text-center border border-indigo-500/30 text-xs mb-2 animate-fade-in-up">${homeTacticLog}</div>`);
 
-    addLog(`<div class="text-indigo-300 font-bold bg-indigo-900/40 p-2 rounded text-center border border-indigo-500/30 text-xs mb-2 animate-fade-in-up">${homeTacticLog}</div>`);
-
-    let currentHomeOVR = baseHomeOVR;
-    let currentAwayOVR = baseAwayOVR;
-    let homeRedCards = 0;
-    let awayRedCards = 0;
-
-    let myActiveTraits = [];
-    let myAttackers = [];
-    gameState.startingXI.forEach(function(id) {
-        if (id && gameState.globalPlayersMap[id]) {
-            let p = gameState.globalPlayersMap[id];
-            if (p.trait) myActiveTraits.push({ name: p.name, trait: p.trait });
-            if (p.pos === 'FWD' || p.pos === 'MID') myAttackers.push(p);
-        }
-    });
-
-    const matchTimer = setInterval(function() {
-        minute += Math.floor(Math.random() * 4) + 2;
-        if (minute >= 90) minute = 90;
-        document.getElementById('match-minute').textContent = minute;
-
-        const rng = Math.random() * 100;
-        let homeGoalChance = (currentHomeOVR / (currentHomeOVR + currentAwayOVR)) * 14;
-        let awayGoalChance = (currentAwayOVR / (currentAwayOVR + currentHomeOVR)) * 14;
-
-        if (gameState.currentFormation === '5-3-2' && currentAwayOVR > currentHomeOVR && Math.random() < 0.2) {
-            homeGoalChance += 5;
-        }
-
-        let triggeredTrait = null;
-        if (myActiveTraits.length > 0 && Math.random() < 0.15) {
-            triggeredTrait = myActiveTraits[Math.floor(Math.random() * myActiveTraits.length)];
-        }
-
-        if (rng < homeGoalChance || (triggeredTrait && ['speedster', 'sniper', 'playmaker', 'fox'].includes(triggeredTrait.trait.id))) {
-            homeScore++;
-            scoreHomeEl.textContent = homeScore;
-            triggerGoalEffect(true);
-
-            if (triggeredTrait) {
-                addLog(`<div class="text-fuchsia-300 font-bold bg-gradient-to-r from-fuchsia-900/60 to-transparent p-3 rounded-lg border-l-4 border-fuchsia-500 shadow-[0_0_15px_rgba(217,70,239,0.3)] animate-fade-in-up">
-                    ${triggeredTrait.trait.icon} KỸ NĂNG: ${triggeredTrait.trait.name.toUpperCase()}!<br>
-                    <span class="text-white text-xs">${triggeredTrait.name} ${triggeredTrait.trait.desc} và ghi bàn ngoạn mục!</span>
-                </div>`);
-                playHaptic('heavy');
-            } else {
-                addLog(`<div class="text-green-300 font-bold bg-gradient-to-r from-green-900/60 to-transparent p-3 rounded-lg border-l-4 border-green-500 shadow-md animate-fade-in-up">⚽ Phút ${minute}': VÀO!!! Bàn thắng tuyệt đẹp cho ${gameState.myClubName.toUpperCase()}!</div>`);
-            }
-        } else if (rng > 100 - awayGoalChance) {
-            if (triggeredTrait && ['wall', 'spider'].includes(triggeredTrait.trait.id)) {
-                addLog(`<div class="text-cyan-300 font-bold bg-gradient-to-r from-cyan-900/60 to-transparent p-3 rounded-lg border-l-4 border-cyan-500 shadow-md animate-fade-in-up">
-                    ${triggeredTrait.trait.icon} KỸ NĂNG: ${triggeredTrait.trait.name.toUpperCase()}!<br>
-                    <span class="text-white text-xs">${triggeredTrait.name} cứu thua xuất thần cho ${gameState.myClubName}! Nguy hiểm trôi qua.</span>
-                </div>`);
-            } else {
-                awayScore++;
-                scoreAwayEl.textContent = awayScore;
-                triggerGoalEffect(false);
-                addLog(`<div class="text-red-300 font-bold bg-gradient-to-r from-red-900/60 to-transparent p-3 rounded-lg border-l-4 border-red-500 shadow-md animate-fade-in-up">⚽ Phút ${minute}': VÀO! ${opponent.name.toUpperCase()} chọc thủng lưới!</div>`);
-            }
-        } else if (rng > 30 && rng < 35 && myAttackers.length > 0) {
-            let kicker = myAttackers[Math.floor(Math.random() * myAttackers.length)];
-            let isPenalty = Math.random() > 0.5;
-            let situation = isPenalty ? 'Phạt đền 11m' : 'Sút phạt trực tiếp';
-
-            addLog(`<div class="text-yellow-300 italic px-2 animate-fade-in-up">⚡ Phút ${minute}': Cơ hội! ${kicker.name} đứng trước chấm ${situation}...</div>`);
-
-            setTimeout(function() {
-                let shootRNG = Math.random() * 100;
-                let goalProb = (kicker.stats.SHO / (kicker.stats.SHO + currentAwayOVR)) * 100;
-
-                if (shootRNG < goalProb + (isPenalty ? 20 : 0)) {
-                    homeScore++;
-                    scoreHomeEl.textContent = homeScore;
-                    triggerGoalEffect(true);
-                    addLog(`<div class="text-green-300 font-bold bg-gradient-to-r from-green-900/60 to-transparent p-3 rounded-lg border-l-4 border-green-500 shadow-md animate-fade-in-up">🎯 VÀO!!! Cú sút quá hiểm hóc của ${kicker.name}!</div>`);
-                } else {
-                    addLog(`<div class="text-slate-400 italic px-2 animate-fade-in-up">❌ Không vào! ${kicker.name} đã sút bóng đi trúng thủ môn đội bạn.</div>`);
-                }
-            }, 800);
-        } else if (rng > 80 && rng < 83) {
-            let isHomeCard = Math.random() > 0.5;
-            if (isHomeCard && homeRedCards < 3) {
-                homeRedCards++;
-                currentHomeOVR = Math.floor(currentHomeOVR * 0.9);
-                addLog(`<div class="text-red-500 font-black bg-red-950/50 p-2 rounded border border-red-500/50 animate-fade-in-up">🟥 Phút ${minute}': THẺ ĐỎ cho ${gameState.myClubName}! Đội bạn chỉ còn ${11 - homeRedCards} người. Sức mạnh giảm 10%!</div>`);
-            } else if (!isHomeCard && awayRedCards < 3) {
-                awayRedCards++;
-                currentAwayOVR = Math.floor(currentAwayOVR * 0.9);
-                addLog(`<div class="text-orange-500 font-black bg-orange-950/50 p-2 rounded border border-orange-500/50 animate-fade-in-up">🟥 Phút ${minute}': THẺ ĐỎ cho ${opponent.name}! Đội khách mất người!</div>`);
-            }
-        } else if (rng > 40 && rng < 45) {
-            addLog(`<div class="text-slate-400 italic px-2 animate-fade-in-up">⏱ Phút ${minute}': Thế trận giằng co ở khu vực giữa sân...</div>`);
-        } else if (rng > 70 && rng < 74) {
-            addLog(`<div class="text-yellow-400 px-2 animate-fade-in-up">Phút ${minute}': 🧤 Thủ môn cản phá xuất thần! Một pha bóng thót tim!</div>`);
-        }
-
-        if (minute >= 90) {
-            clearInterval(matchTimer);
-            addLog('<div class="text-yellow-400 font-black text-center mt-4 mb-2 text-xl uppercase tracking-widest drop-shadow-md animate-fade-in-up">HẾT GIỜ!</div>');
-
-            if (isPvp) {
-                const finishBtn = document.getElementById('finish-match-btn');
-                finishBtn.textContent = "Nhận Điểm Rank & Quay Về PvP";
-                finishBtn.classList.remove('hidden');
-                finishBtn.classList.add('animate-fade-in-up');
-                finishBtn.onclick = function() {
-                    finishPvpMatch(homeScore, awayScore, opponent);
-                };
-                return;
-            }
-
-            let matchFee = isFriendly ? 0 : -50000;
-            let perfBonus = (homeScore > awayScore) ? (isFriendly ? 50000 : 300000) : (homeScore === awayScore ? (isFriendly ? 20000 : 100000) : 0);
-            let cleanSheet = (awayScore === 0) ? (isFriendly ? 20000 : 150000) : 0;
-            let bigWin = (homeScore - awayScore >= 3) ? (isFriendly ? 20000 : 200000) : 0;
-            let sponsorMoney = isFriendly ? 100000 : 0;
-
-            if (!gameState.myFacilities.stadium) gameState.myFacilities.stadium = 1;
-            let currentStadium = STADIUM_STATS[gameState.myFacilities.stadium - 1];
-            let ticketRevenue = currentStadium.capacity * currentStadium.ticketPrice;
-            if (isFriendly) ticketRevenue = Math.floor(ticketRevenue * 0.3);
-
-            let staffSalary = 0;
-            if (gameState.myStaff.physio) staffSalary += gameState.myStaff.physio.salary;
-            if (gameState.myStaff.coach) staffSalary += gameState.myStaff.coach.salary;
-
-            let income = perfBonus + cleanSheet + bigWin + sponsorMoney + ticketRevenue;
-            let financeBonus = Math.floor(income * (gameState.myFacilities.finance * 0.05));
-            let totalEarnings = matchFee + income + financeBonus - staffSalary;
-
-            addLog(`<div class="mt-3 mb-2 bg-slate-800 border border-yellow-500/50 p-4 rounded-xl text-xs sm:text-sm shadow-xl animate-fade-in-up">
-                <div class="font-bold text-yellow-400 mb-3 border-b border-slate-700 pb-2 text-center tracking-widest uppercase">📊 Báo cáo Tài chính</div>
-                <div class="space-y-1.5">
-                    <div class="flex justify-between text-slate-300"><span>Phí tổ chức:</span><span class="text-red-400 font-medium">${matchFee < 0 ? '- €50,000' : 'Miễn phí'}</span></div>
-                    ${ticketRevenue ? `<div class="flex justify-between text-slate-300"><span>Doanh thu Bán vé:</span><span class="text-green-400 font-medium">+ €${ticketRevenue.toLocaleString()}</span></div>` : ''}
-                    ${sponsorMoney ? `<div class="flex justify-between text-slate-300"><span>Tài trợ giao hữu:</span><span class="text-green-400 font-medium">+ €${sponsorMoney.toLocaleString()}</span></div>` : ''}
-                    ${perfBonus ? `<div class="flex justify-between text-slate-300"><span>Thưởng thành tích:</span><span class="text-green-400 font-medium">+ €${perfBonus.toLocaleString()}</span></div>` : ''}
-                    ${cleanSheet ? `<div class="flex justify-between text-slate-300"><span>Sạch lưới:</span><span class="text-green-400 font-medium">+ €${cleanSheet.toLocaleString()}</span></div>` : ''}
-                    ${bigWin ? `<div class="flex justify-between text-slate-300"><span>Thắng đậm:</span><span class="text-green-400 font-medium">+ €${bigWin.toLocaleString()}</span></div>` : ''}
-                    ${staffSalary > 0 ? `<div class="flex justify-between text-slate-300"><span>Lương BHL:</span><span class="text-red-400 font-medium">- €${staffSalary.toLocaleString()}</span></div>` : ''}
-                </div>
-                <div class="flex justify-between font-bold mt-3 pt-3 border-t border-slate-700 text-sm bg-slate-900/50 p-2 rounded">
-                    <span>Tổng nhận:</span>
-                    <span class="${totalEarnings > 0 ? 'text-green-400' : 'text-red-400'} text-base">${totalEarnings > 0 ? '+' : ''} €${totalEarnings.toLocaleString()}</span>
-                </div>
-            </div>`);
-
-            setTimeout(function() {
-                const liveMatchView = document.getElementById('match-live');
-                liveMatchView.scrollTop = liveMatchView.scrollHeight;
-            }, 300);
-
-            const finishBtn = document.getElementById('finish-match-btn');
-            finishBtn.textContent = "Tiếp tục";
-            finishBtn.classList.remove('hidden');
-            finishBtn.classList.add('animate-fade-in-up');
-
-            finishBtn.onclick = async function() {
-                finishBtn.textContent = "Đang xử lý ngầm...";
-                finishBtn.disabled = true;
-                await processTransferMarket();
-                await processFacilitiesAndStamina();
-
-                let staffLog = await autoAssignFacilities();
-                if (staffLog) {
-                    logContainer.insertAdjacentHTML('beforeend', `<div class="mt-3 mb-2 bg-slate-800/80 border border-slate-600 p-4 rounded-xl text-xs sm:text-sm shadow-xl animate-fade-in-up">
-                        <div class="font-bold text-white mb-2 border-b border-slate-700 pb-2 flex items-center gap-2">👔 Báo cáo Ban Huấn Luyện</div>
-                        <div class="space-y-2">${staffLog}</div>
-                    </div>`);
-                    const liveMatchView = document.getElementById('match-live');
-                    liveMatchView.scrollTop = liveMatchView.scrollHeight;
-                }
-
-                finishBtn.textContent = "Lưu thành tích vòng đấu";
-                finishBtn.disabled = false;
-                finishBtn.onclick = function() {
-                    if (isFriendly) finishFriendlyMatch(totalEarnings);
-                    else finishLeagueRound(homeScore, awayScore, totalEarnings);
-                };
-            };
-        }
-    }, 400);
+    startMatchLoop();
 }
 
 export async function finishLeagueRound(userScore, botScore, totalEarnings) {
@@ -690,3 +1279,12 @@ export function initMatchEngineListeners() {
         document.getElementById('dashboard-section').scrollIntoView({ behavior: "smooth" });
     });
 }
+
+// Gắn trực tiếp các hàm điều khiển trận đấu lên window cho các nút onclick
+window.openMatchSubModal = openMatchSubModal;
+window.closeMatchSubModal = closeMatchSubModal;
+window.selectSubOut = selectSubOut;
+window.selectSubIn = selectSubIn;
+window.confirmMatchSubstitution = confirmMatchSubstitution;
+window.triggerTouchlineShout = triggerTouchlineShout;
+window.toggleMatchSpeed = toggleMatchSpeed;
