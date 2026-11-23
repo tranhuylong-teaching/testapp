@@ -3,7 +3,7 @@ import { showLoading, hideLoading, showToast } from './ui-helpers.js';
 import { doc, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 import { gameState, STADIUM_STATS, toggleNavLock, playHaptic, updateHeaderDisplay, pushNews } from './state.js';
 import { processTransferMarket } from './market-store.js';
-import { processFacilitiesAndStamina, autoAssignFacilities } from './facilities-staff.js';
+import { processFacilitiesAndStamina, autoAssignFacilities, triggerYouthIntakeDay, updateSquadCountAndFfpUI } from './facilities-staff.js';
 import { finishPvpMatch } from './pvp.js';
 
 let liveMatchState = {
@@ -68,6 +68,7 @@ export function sortStandings() {
 
 export function renderLeagueView() {
     sortStandings();
+    updateSquadCountAndFfpUI();
 
     if (gameState.leagueState.currentRound > 31) {
         document.getElementById('match-setup').classList.add('hidden');
@@ -618,14 +619,12 @@ function runMatchTick() {
     const minEl = document.getElementById('match-minute');
     if (minEl) minEl.textContent = liveMatchState.minute;
 
-    // Kiểm tra hết hiệu lực chỉ đạo đường biên
     if (liveMatchState.activeShout && liveMatchState.minute > liveMatchState.shoutEndMinute) {
         const endedCfg = SHOUT_CONFIG[liveMatchState.activeShout];
         liveMatchState.activeShout = null;
         addMatchLog(`<div class="text-slate-400 italic px-2 text-xs animate-fade-in-up">⏱ Phút ${liveMatchState.minute}': Hiệu ứng chỉ đạo "${endedCfg.name}" đã kết thúc, đội hình trở về nhịp độ chuẩn.</div>`);
     }
 
-    // Tiêu hao thể lực theo thời gian thực trên sân
     let drainRate = 0.22;
     if (liveMatchState.activeShout === 'all_out') drainRate = 0.30;
     else if (liveMatchState.activeShout === 'park_bus') drainRate = 0.16;
@@ -761,7 +760,6 @@ async function reconcileSubstitutionStamina() {
     const batch = writeBatch(db);
     let hasUpdates = false;
 
-    // Hoàn trả một phần thể lực cho cầu thủ rời sân sớm
     liveMatchState.subbedOutIds.forEach(function(id) {
         const p = gameState.globalPlayersMap[id];
         if (!p) return;
@@ -778,7 +776,6 @@ async function reconcileSubstitutionStamina() {
         hasUpdates = true;
     });
 
-    // Trừ thể lực tương ứng cho cầu thủ dự bị vào sân
     liveMatchState.activeXI.forEach(function(id) {
         if (!id || liveMatchState.originalXI.indexOf(id) !== -1) return;
         const p = gameState.globalPlayersMap[id];
@@ -852,9 +849,13 @@ function concludeMatch() {
     if (gameState.myStaff.physio) staffSalary += gameState.myStaff.physio.salary;
     if (gameState.myStaff.coach) staffSalary += gameState.myStaff.coach.salary;
 
+    // Luật Công bằng Tài chính (FFP): Phạt €150,000 / cầu thủ vượt trần 25 người
+    const overLimitPlayers = Math.max(0, gameState.globalPlayersList.length - 25);
+    const ffpFine = overLimitPlayers * 150000;
+
     let income = perfBonus + cleanSheet + bigWin + sponsorMoney + ticketRevenue;
     let financeBonus = Math.floor(income * (gameState.myFacilities.finance * 0.05));
-    let totalEarnings = matchFee + income + financeBonus - staffSalary;
+    let totalEarnings = matchFee + income + financeBonus - staffSalary - ffpFine;
 
     addMatchLog(`<div class="mt-3 mb-2 bg-slate-800 border border-yellow-500/50 p-4 rounded-xl text-xs sm:text-sm shadow-xl animate-fade-in-up">
         <div class="font-bold text-yellow-400 mb-3 border-b border-slate-700 pb-2 text-center tracking-widest uppercase">📊 Báo cáo Tài chính</div>
@@ -866,6 +867,7 @@ function concludeMatch() {
             ${cleanSheet ? `<div class="flex justify-between text-slate-300"><span>Sạch lưới:</span><span class="text-green-400 font-medium">+ €${cleanSheet.toLocaleString()}</span></div>` : ''}
             ${bigWin ? `<div class="flex justify-between text-slate-300"><span>Thắng đậm:</span><span class="text-green-400 font-medium">+ €${bigWin.toLocaleString()}</span></div>` : ''}
             ${staffSalary > 0 ? `<div class="flex justify-between text-slate-300"><span>Lương BHL:</span><span class="text-red-400 font-medium">- €${staffSalary.toLocaleString()}</span></div>` : ''}
+            ${ffpFine > 0 ? `<div class="flex justify-between text-red-400 font-bold"><span>⚖️ Phạt FFP (Vượt ${overLimitPlayers} cầu thủ):</span><span>- €${ffpFine.toLocaleString()}</span></div>` : ''}
         </div>
         <div class="flex justify-between font-bold mt-3 pt-3 border-t border-slate-700 text-sm bg-slate-900/50 p-2 rounded">
             <span>Tổng nhận:</span>
@@ -1260,7 +1262,10 @@ export function initMatchEngineListeners() {
                 pushNews("Dấu Hiệu Tuổi Tác", `Các lão tướng: ${declineLogs.join(', ')} đã bước qua sườn dốc sự nghiệp. Thể lực và phản xạ đang có dấu hiệu chậm lại, OVR bắt đầu sụt giảm!`, false);
             }
 
-            showToast("Mùa giải mới! Thể lực đã hồi phục 100%.", "success");
+            // Kích hoạt Ngày hội Đón Lứa Trẻ (Youth Intake Day) đầu mùa
+            await triggerYouthIntakeDay();
+
+            showToast("Mùa giải mới! Học viện đã trình làng lứa cầu thủ trẻ mới.", "success");
             if (document.getElementById('quick-play-btn')) document.getElementById('quick-play-btn').classList.remove('hidden');
         } catch (e) {
             showToast("Lỗi khởi tạo mùa giải!");
@@ -1280,7 +1285,6 @@ export function initMatchEngineListeners() {
     });
 }
 
-// Gắn trực tiếp các hàm điều khiển trận đấu lên window cho các nút onclick
 window.openMatchSubModal = openMatchSubModal;
 window.closeMatchSubModal = closeMatchSubModal;
 window.selectSubOut = selectSubOut;
